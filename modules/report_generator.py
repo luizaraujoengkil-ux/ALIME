@@ -14,6 +14,10 @@ import pandas as pd
 import streamlit as st
 
 from . import ui_theme, social_cost as sc_mod
+from . import (
+    __version__, __release_date__,
+    __author__, __author_email__, __author_affiliation__,
+)
 
 
 REPORT_DIR = Path(__file__).resolve().parent.parent / "data" / "exports" / "reports"
@@ -68,7 +72,8 @@ def build_markdown(scope: str, study: dict, params: dict,
     """
     out = []
     out.append("# ALIME — Relatório\n")
-    out.append(f"_Gerado em {datetime.now().isoformat(timespec='seconds')}_\n")
+    out.append(f"_Gerado em {datetime.now().isoformat(timespec='seconds')} · "
+               f"ALIME v{__version__} ({__release_date__})_\n")
     out.append(f"\n**Estudo:** {study.get('name')}  ")
     out.append(f"**Município:** {study.get('municipality')}/{study.get('uf')}  ")
     out.append(f"**População:** {study.get('population')}  ")
@@ -113,6 +118,12 @@ def build_markdown(scope: str, study: dict, params: dict,
     out.append("- Atribuição all-or-nothing (sem congestionamento).\n")
     out.append("- Custos sociais baseados em valor do tempo genérico.\n")
     out.append("- Rede simplificada (k-vizinhos) por padrão.\n")
+    out.append("\n---\n")
+    out.append(
+        f"**Desenvolvido por {__author__}** — "
+        f"<{__author_email__}> · {__author_affiliation__}  \n"
+        f"ALIME v{__version__} · {__release_date__}\n"
+    )
     return "\n".join(out)
 
 

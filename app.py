@@ -12,6 +12,13 @@ import streamlit as st
 
 from modules import ui_theme
 from modules import (
+    __version__,
+    __release_date__,
+    __author__,
+    __author_email__,
+    __author_affiliation__,
+)
+from modules import (
     city_setup,
     zones,
     trip_generation,
@@ -110,13 +117,32 @@ PAGES = [
 
 
 def render_sidebar() -> None:
+    p = ui_theme.PALETTE
     with st.sidebar:
+        # ----- Cabeçalho: nome + autoria + versão + data -----
         st.markdown(
             f"""
-            <div style='padding:0.6rem 0 0.8rem 0;border-bottom:1px solid {ui_theme.PALETTE['border']};margin-bottom:0.8rem'>
-                <div style='font-size:1.6rem;font-weight:800;color:{ui_theme.PALETTE['yellow']};letter-spacing:4px'>ALIME</div>
-                <div style='font-size:0.7rem;color:{ui_theme.PALETTE['text_mute']};margin-top:2px'>
+            <div style="padding:0.4rem 0 0.9rem 0;
+                        border-bottom:1px solid {p['border']};
+                        margin-bottom:0.9rem;">
+                <div style="font-size:1.9rem;font-weight:800;color:{p['yellow']};
+                            letter-spacing:6px;line-height:1;">ALIME</div>
+                <div style="font-size:0.72rem;color:{p['text_mute']};
+                            margin-top:6px;line-height:1.3;">
                     Análise Local Integrada<br/>de Mobilidade e Engenharia
+                </div>
+                <div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap;">
+                    <span class="alime-badge yellow">v{__version__}</span>
+                    <span class="alime-badge blue">{__release_date__}</span>
+                </div>
+                <div style="margin-top:10px;font-size:0.72rem;color:{p['text_mute']};
+                            line-height:1.4;">
+                    Desenvolvido por<br/>
+                    <span style="color:{p['text']};font-weight:600;">{__author__}</span><br/>
+                    <a href="mailto:{__author_email__}"
+                       style="color:{p['orange']};text-decoration:none;">
+                       {__author_email__}</a><br/>
+                    <span style="font-size:0.68rem;">{__author_affiliation__}</span>
                 </div>
             </div>
             """,
