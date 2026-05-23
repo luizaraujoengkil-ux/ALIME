@@ -7,7 +7,7 @@ Constantes públicas centralizadas aqui (versão, autoria, data de referência)
 para que toda a UI consuma um único ponto de verdade.
 """
 
-__version__ = "0.2.0"
+__version__ = "0.3.0"
 __release_date__ = "maio/2026"
 
 __app_name__ = "ALIME"

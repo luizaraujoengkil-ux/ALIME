@@ -1,73 +1,115 @@
 /* ============================================================
-   ALIME — Tema escuro/amarelo
-   Paleta:
-     Fundo principal       #070A0D
-     Fundo secundário      #111820
-     Card elevado          #151F2A
-     Amarelo principal     #F5B700
-     Laranja destaque      #FF7A00
-     Verde melhoria        #3ECF5E
-     Vermelho crítico      #E53935
-     Azul informação       #28A8FF
-     Texto principal       #F4F4F4
-     Texto secundário      #B8C0CC
-     Bordas                #27313D
+   ALIME — Tema moderno (navy profundo + âmbar mosqueado)
+   Inspiração: design editorial sóbrio, deep-navy + warm amber
    ============================================================ */
 
 :root {
-  --bg-main:    #070A0D;
-  --bg-second:  #111820;
-  --bg-card:    #151F2A;
-  --yellow:     #F5B700;
-  --orange:     #FF7A00;
-  --green:      #3ECF5E;
-  --red:        #E53935;
-  --blue:       #28A8FF;
-  --text:       #F4F4F4;
-  --text-mute:  #B8C0CC;
-  --border:     #27313D;
+  /* Fundos — navy profundo, sem azul "vibrante" */
+  --bg-main:      #0A1628;
+  --bg-second:    #11203A;
+  --bg-card:      #16294A;
+  --bg-card-hi:   #1B315A;
+
+  /* Bordas */
+  --border:        #1F3552;
+  --border-strong: #2D4A6B;
+
+  /* Primária — âmbar/dourado dessaturado (estilo mostarda quente) */
+  --amber:        #D4A93C;
+  --amber-hover:  #E5BE51;
+  --amber-soft:   #B89230;
+  --amber-glow:   rgba(212, 169, 60, 0.12);
+  --amber-tint:   rgba(212, 169, 60, 0.22);
+
+  /* Acentos — todos dessaturados, na mesma família */
+  --terra:        #E07856;   /* alerta/destaque (era laranja #FF7A00) */
+  --crimson:      #C75444;   /* crítico (era vermelho #E53935) */
+  --moss:         #82C39E;   /* melhoria/sucesso (era verde #3ECF5E) */
+  --sage:         #7BA890;   /* acento alternativo */
+  --teal-info:    #6BA8C9;   /* informação (era azul #28A8FF) */
+
+  /* Texto — cream quente sobre navy (menos cansativo que branco puro) */
+  --text:         #F4F1E8;
+  --text-mute:    #A8B5C5;
+
+  /* Aliases legados (mantidos para compatibilidade com PALETTE no Python) */
+  --yellow:  var(--amber);
+  --orange:  var(--terra);
+  --green:   var(--moss);
+  --red:     var(--crimson);
+  --blue:    var(--teal-info);
 }
 
-html, body, [class*="css"]  {
+html, body, [class*="css"] {
   background-color: var(--bg-main) !important;
   color: var(--text) !important;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
-.stApp {
-  background-color: var(--bg-main) !important;
-}
+.stApp { background-color: var(--bg-main) !important; }
 
-/* Sidebar */
+/* --------------------- Sidebar --------------------- */
 section[data-testid="stSidebar"] {
   background-color: var(--bg-second) !important;
   border-right: 1px solid var(--border) !important;
 }
 section[data-testid="stSidebar"] * { color: var(--text) !important; }
 
-/* Titles */
-h1, h2, h3, h4, h5, h6 {
-  color: var(--yellow) !important;
-  font-weight: 700 !important;
-  letter-spacing: 0.2px;
+/* Botões DA SIDEBAR — estilo "menu flat" com acento à esquerda
+   (substitui o bloco amarelo preenchido por algo discreto e moderno) */
+section[data-testid="stSidebar"] .stButton > button {
+  background-color: transparent !important;
+  color: var(--text) !important;
+  border: 1px solid transparent !important;
+  border-left: 3px solid transparent !important;
+  border-radius: 6px !important;
+  font-weight: 500 !important;
+  padding: 0.5rem 0.85rem !important;
+  text-align: left !important;
+  letter-spacing: 0.1px;
+  transition: background-color 0.18s ease,
+              border-color 0.18s ease,
+              color 0.18s ease;
+  box-shadow: none !important;
+  transform: none !important;
+}
+section[data-testid="stSidebar"] .stButton > button:hover {
+  background-color: var(--amber-glow) !important;
+  border-left-color: var(--amber) !important;
+  color: var(--amber-hover) !important;
+}
+section[data-testid="stSidebar"] .stButton > button:focus,
+section[data-testid="stSidebar"] .stButton > button:focus-visible {
+  background-color: var(--amber-glow) !important;
+  border-left-color: var(--amber) !important;
+  color: var(--amber-hover) !important;
+  outline: none !important;
 }
 
+/* --------------------- Tipografia --------------------- */
+h1, h2, h3, h4, h5, h6 {
+  color: var(--amber) !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.15px;
+}
 p, span, label, li, div { color: var(--text); }
 
-/* Buttons */
+/* --------------------- Botões da ÁREA PRINCIPAL --------------------- */
 .stButton > button {
-  background-color: var(--yellow) !important;
-  color: #1a1a1a !important;
+  background-color: var(--amber) !important;
+  color: #0A1628 !important;
   border: none !important;
   border-radius: 10px !important;
-  font-weight: 700 !important;
+  font-weight: 600 !important;
   padding: 0.55rem 1.1rem !important;
-  transition: all 0.15s ease;
+  transition: background-color 0.18s ease, transform 0.15s ease;
 }
 .stButton > button:hover {
-  background-color: var(--orange) !important;
-  color: #ffffff !important;
+  background-color: var(--amber-hover) !important;
+  color: #0A1628 !important;
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(255, 122, 0, 0.35);
+  box-shadow: 0 4px 14px rgba(212, 169, 60, 0.25);
 }
 
 /* Inputs */
@@ -79,46 +121,49 @@ p, span, label, li, div { color: var(--text); }
   border-radius: 8px !important;
 }
 
-/* Cards */
+/* --------------------- Cards --------------------- */
 .alime-card {
   background: linear-gradient(180deg, var(--bg-card) 0%, var(--bg-second) 100%);
   border: 1px solid var(--border);
   border-radius: 14px;
   padding: 1.0rem 1.2rem;
   margin-bottom: 0.8rem;
-  box-shadow: 0 4px 14px rgba(0,0,0,0.35);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
 }
 .alime-card h4 {
-  color: var(--yellow) !important;
+  color: var(--amber) !important;
   margin: 0 0 .35rem 0;
-  font-size: 0.85rem;
+  font-size: 0.78rem;
   text-transform: uppercase;
-  letter-spacing: 0.6px;
+  letter-spacing: 0.7px;
+  font-weight: 600 !important;
 }
 .alime-card .value {
   font-size: 1.6rem;
   font-weight: 700;
   color: var(--text);
 }
-.alime-card .delta-up   { color: var(--green); font-weight: 600; }
-.alime-card .delta-down { color: var(--red);   font-weight: 600; }
+.alime-card .delta-up   { color: var(--moss);    font-weight: 600; }
+.alime-card .delta-down { color: var(--crimson); font-weight: 600; }
 
-/* Badges */
+/* --------------------- Badges --------------------- */
 .alime-badge {
   display: inline-block;
-  padding: 0.18rem 0.55rem;
+  padding: 0.2rem 0.6rem;
   border-radius: 999px;
-  font-size: 0.72rem;
-  font-weight: 700;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.3px;
   margin-right: 0.3rem;
 }
-.alime-badge.yellow { background: var(--yellow); color: #1a1a1a; }
-.alime-badge.orange { background: var(--orange); color: #fff; }
-.alime-badge.red    { background: var(--red);    color: #fff; }
-.alime-badge.green  { background: var(--green);  color: #0a2a13; }
-.alime-badge.blue   { background: var(--blue);   color: #001a33; }
+.alime-badge.yellow { background: var(--amber);     color: #0A1628; }
+.alime-badge.orange { background: var(--terra);     color: #1B0A05; }
+.alime-badge.red    { background: var(--crimson);   color: #FFE8E5; }
+.alime-badge.green  { background: var(--moss);      color: #0F2A1E; }
+.alime-badge.blue   { background: var(--teal-info); color: #062235; }
+.alime-badge.sage   { background: var(--sage);      color: #0F2018; }
 
-/* Tabs */
+/* --------------------- Tabs --------------------- */
 .stTabs [data-baseweb="tab-list"] {
   background: var(--bg-second);
   border-radius: 10px;
@@ -127,19 +172,20 @@ p, span, label, li, div { color: var(--text); }
 }
 .stTabs [data-baseweb="tab"] { color: var(--text-mute) !important; }
 .stTabs [aria-selected="true"] {
-  background: var(--yellow) !important;
-  color: #1a1a1a !important;
+  background: var(--amber-tint) !important;
+  color: var(--amber-hover) !important;
   border-radius: 8px !important;
 }
 
 /* Dataframe */
 [data-testid="stDataFrame"] { background-color: var(--bg-card) !important; }
 
-/* Hero (tela inicial) */
+/* --------------------- Hero --------------------- */
 .alime-hero {
-  background: radial-gradient(circle at 20% 20%, rgba(245,183,0,0.10), transparent 60%),
-              radial-gradient(circle at 80% 80%, rgba(255,122,0,0.07), transparent 60%),
-              linear-gradient(180deg, #070A0D 0%, #111820 100%);
+  background:
+    radial-gradient(circle at 20% 20%, rgba(212, 169, 60, 0.08), transparent 60%),
+    radial-gradient(circle at 80% 80%, rgba(123, 168, 144, 0.06), transparent 60%),
+    linear-gradient(180deg, #0A1628 0%, #11203A 100%);
   border: 1px solid var(--border);
   border-radius: 18px;
   padding: 3rem 2.5rem;
@@ -148,9 +194,10 @@ p, span, label, li, div { color: var(--text); }
 }
 .alime-hero .logo {
   font-size: 3.5rem;
-  font-weight: 800;
-  color: var(--yellow);
-  letter-spacing: 6px;
+  font-weight: 700;
+  color: var(--amber);
+  letter-spacing: 8px;
+  text-shadow: none;
 }
 .alime-hero .sub {
   color: var(--text-mute);
@@ -158,38 +205,38 @@ p, span, label, li, div { color: var(--text); }
   margin-top: 0.6rem;
 }
 .alime-hero .tag {
-  color: var(--orange);
+  color: var(--sage);
   font-style: italic;
   margin-top: 0.8rem;
 }
 
-/* Warning bar */
+/* --------------------- Avisos --------------------- */
 .alime-warn {
-  background: rgba(229, 57, 53, 0.10);
-  border-left: 4px solid var(--red);
+  background: rgba(199, 84, 68, 0.10);
+  border-left: 4px solid var(--crimson);
   padding: 0.7rem 1rem;
   border-radius: 8px;
   color: var(--text);
   margin: 0.8rem 0;
 }
 .alime-info {
-  background: rgba(40, 168, 255, 0.08);
-  border-left: 4px solid var(--blue);
+  background: rgba(107, 168, 201, 0.08);
+  border-left: 4px solid var(--teal-info);
   padding: 0.7rem 1rem;
   border-radius: 8px;
   color: var(--text);
   margin: 0.8rem 0;
 }
 .alime-ok {
-  background: rgba(62, 207, 94, 0.10);
-  border-left: 4px solid var(--green);
+  background: rgba(130, 195, 158, 0.10);
+  border-left: 4px solid var(--moss);
   padding: 0.7rem 1rem;
   border-radius: 8px;
   color: var(--text);
   margin: 0.8rem 0;
 }
 
-/* Sidebar nav items */
+/* --------------------- Sidebar nav legado --------------------- */
 .alime-nav-item {
   background: var(--bg-card);
   border: 1px solid var(--border);
@@ -201,9 +248,9 @@ p, span, label, li, div { color: var(--text); }
 }
 .alime-nav-item .num {
   display: inline-block;
-  background: var(--yellow);
-  color: #1a1a1a;
-  font-weight: 800;
+  background: var(--amber);
+  color: #0A1628;
+  font-weight: 700;
   border-radius: 6px;
   padding: 0 0.4rem;
   margin-right: 0.4rem;

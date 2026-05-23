@@ -13,17 +13,21 @@ import streamlit as st
 
 
 PALETTE = {
-    "bg_main":   "#070A0D",
-    "bg_second": "#111820",
-    "bg_card":   "#151F2A",
-    "yellow":    "#F5B700",
-    "orange":    "#FF7A00",
-    "green":     "#3ECF5E",
-    "red":       "#E53935",
-    "blue":      "#28A8FF",
-    "text":      "#F4F4F4",
-    "text_mute": "#B8C0CC",
-    "border":    "#27313D",
+    # Fundos — navy profundo
+    "bg_main":   "#0A1628",
+    "bg_second": "#11203A",
+    "bg_card":   "#16294A",
+    # Primária — âmbar dessaturado (não confundir: a chave continua "yellow"
+    # por compatibilidade com módulos legados)
+    "yellow":    "#D4A93C",
+    "orange":    "#E07856",   # terra/coral
+    "green":     "#82C39E",   # moss/sage
+    "red":       "#C75444",   # crimson dessaturado
+    "blue":      "#6BA8C9",   # teal-info
+    "sage":      "#7BA890",
+    "text":      "#F4F1E8",
+    "text_mute": "#A8B5C5",
+    "border":    "#1F3552",
 }
 
 # Aviso obrigatório que deve aparecer em relatórios e em pontos-chave
@@ -126,9 +130,9 @@ def section_title(num: int | str, title: str) -> None:
     st.markdown(
         f"""
         <h2 style="margin-top:0.5rem">
-          <span style="background:{PALETTE['yellow']};color:#1a1a1a;
+          <span style="background:{PALETTE['yellow']};color:{PALETTE['bg_main']};
                        padding:2px 10px;border-radius:8px;margin-right:10px;
-                       font-weight:800;">{num}</span> {title}
+                       font-weight:700;">{num}</span> {title}
         </h2>
         """,
         unsafe_allow_html=True,
