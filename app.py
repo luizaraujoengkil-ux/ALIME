@@ -190,18 +190,88 @@ def render_topbar() -> None:
 # ============================================================
 def render_home() -> None:
     ui_theme.hero()
+
+    # ---- Bloco "Por onde começar?" ----
+    p = ui_theme.PALETTE
+    st.markdown(
+        f"""
+        <div class='alime-card' style='border-left:6px solid {p["yellow"]};
+                                       margin-top:0.5rem'>
+            <h4 style='margin-bottom:0.4rem'>Por onde começar?</h4>
+            <div style='color:{p["text"]};font-size:0.95rem;line-height:1.55'>
+                Escolha <b>uma</b> das três opções abaixo.
+                Se é seu primeiro contato com o ALIME, recomendamos
+                <b style='color:{p["yellow"]}'>Abrir estudo demonstrativo</b> —
+                ele já vem com 8 zonas e leva você direto para a etapa
+                <b>2. Zonas</b>. A partir daí, basta seguir o fluxo
+                <span style='color:{p["text_mute"]}'>
+                    2 → 3 → 4 → 5 → 6 → 7 → 8
+                </span>
+                pelo menu lateral.
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    # ---- 3 CTAs ----
     c1, c2, c3 = st.columns(3)
+
     with c1:
-        if st.button("➕ Criar novo estudo", use_container_width=True):
+        st.markdown(
+            "<div style='text-align:center;color:#A8B5C5;font-size:0.78rem;"
+            "margin-bottom:0.3rem'>do zero, com seus dados</div>",
+            unsafe_allow_html=True,
+        )
+        if st.button("➕ Criar novo estudo", use_container_width=True, key="cta_new"):
             st.session_state["page"] = "1. Município"
+            st.rerun()
+        st.markdown(
+            "<div style='text-align:center;color:#A8B5C5;font-size:0.75rem;"
+            "margin-top:0.3rem;line-height:1.4'>"
+            "Vai para <b>1. Município</b> em branco. Você preenche tudo manualmente."
+            "</div>",
+            unsafe_allow_html=True,
+        )
+
     with c2:
-        if st.button("📂 Abrir estudo demonstrativo", use_container_width=True):
+        st.markdown(
+            f"<div style='text-align:center;color:{p['yellow']};font-size:0.78rem;"
+            "margin-bottom:0.3rem;font-weight:700'>★ recomendado para começar</div>",
+            unsafe_allow_html=True,
+        )
+        if st.button("📂 Abrir estudo demonstrativo",
+                     use_container_width=True, key="cta_demo"):
             from modules import data_update
             data_update.load_demo()
-            ui_theme.ok("Estudo demonstrativo carregado. Vá para a aba **2. Zonas**.")
+            st.rerun()
+        st.markdown(
+            "<div style='text-align:center;color:#A8B5C5;font-size:0.75rem;"
+            "margin-top:0.3rem;line-height:1.4'>"
+            "Carrega <b>8 zonas-exemplo</b> e leva você direto para <b>2. Zonas</b>. "
+            "Daí execute 3 → 4 → 5 → 6."
+            "</div>",
+            unsafe_allow_html=True,
+        )
+
     with c3:
-        if st.button("⬆ Importar estudo existente", use_container_width=True):
+        st.markdown(
+            "<div style='text-align:center;color:#A8B5C5;font-size:0.78rem;"
+            "margin-bottom:0.3rem'>continuar trabalho salvo</div>",
+            unsafe_allow_html=True,
+        )
+        if st.button("⬆ Importar estudo existente",
+                     use_container_width=True, key="cta_import"):
             st.session_state["page"] = "Biblioteca"
+            st.rerun()
+        st.markdown(
+            "<div style='text-align:center;color:#A8B5C5;font-size:0.75rem;"
+            "margin-top:0.3rem;line-height:1.4'>"
+            "Vai para <b>Biblioteca</b>, onde você faz upload de um <b>.json</b> "
+            "salvo anteriormente."
+            "</div>",
+            unsafe_allow_html=True,
+        )
 
     st.markdown("---")
     st.markdown("### Modelo das 4 Etapas")
