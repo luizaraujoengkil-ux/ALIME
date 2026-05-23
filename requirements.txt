@@ -1,0 +1,16 @@
+streamlit>=1.32
+pandas>=2.0
+numpy>=1.24
+plotly>=5.18
+networkx>=3.1
+openpyxl>=3.1
+folium>=0.15
+streamlit-folium>=0.18
+shapely>=2.0
+pyproj>=3.6
+geopandas>=0.14
+
+# OSMnx é opcional - o ALIME degrada graciosamente sem ele.
+# Descomente apenas se for rodar localmente (não recomendado no Streamlit Cloud,
+# pois exige GDAL/Fiona que aumentam o tempo de build).
+# osmnx>=1.9

@@ -1,0 +1,38 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg
+*.egg-info/
+.eggs/
+dist/
+build/
+
+# Virtual envs
+.venv/
+venv/
+env/
+.env
+
+# Streamlit
+.streamlit/secrets.toml
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Uploads / saídas do usuário (não devem ir para o repo)
+data/uploads/*
+!data/uploads/.gitkeep
+data/exports/scenarios/*
+!data/exports/scenarios/.gitkeep
+data/exports/reports/*
+!data/exports/reports/.gitkeep
+data/metadata.json
+
+# Logs
+*.log

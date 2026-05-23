@@ -1,0 +1,17 @@
+# ALIME — Configuração Streamlit
+# Theming oficial (sobrepõe-se ao tema padrão antes do CSS customizado)
+
+[theme]
+base = "dark"
+primaryColor = "#F5B700"
+backgroundColor = "#070A0D"
+secondaryBackgroundColor = "#111820"
+textColor = "#F4F4F4"
+font = "sans serif"
+
+[server]
+headless = true
+runOnSave = false
+
+[browser]
+gatherUsageStats = false
