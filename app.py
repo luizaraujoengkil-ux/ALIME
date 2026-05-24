@@ -302,10 +302,15 @@ def render_home() -> None:
 # ============================================================
 def main() -> None:
     render_sidebar()
-    render_topbar()
-    st.markdown("---")
 
     page = st.session_state["page"]
+
+    # Topbar (nome do estudo + Salvar/Config/Ajuda) só aparece DEPOIS que o
+    # usuário entra em uma etapa de trabalho. Na tela de boas-vindas, o hero
+    # já cumpre o papel de identidade visual.
+    if page != "Início":
+        render_topbar()
+        st.markdown("---")
 
     if page == "Início":
         render_home()
