@@ -173,6 +173,86 @@ alime_simulador/
 
 ---
 
+## Entradas de dados aceitas pelo ALIME
+
+O ALIME é **agnóstico ao formato e ao nome dos arquivos**. Não há lista pré-definida de arquivos obrigatórios nem nomenclatura fixa — basta que os dados importados contenham os campos compatíveis descritos abaixo.
+
+Tipos de entrada suportados:
+
+- **Cadastro manual de zonas** (formulário dentro do app);
+- **CSV ou Excel** com zonas;
+- **CSV ou Excel** com vetores de produção e atração;
+- **CSV ou Excel** com matriz de impedância;
+- **GeoJSON / KML / KMZ** para geometrias de zonas (centroides e/ou polígonos);
+- **Centroides** das zonas via latitude/longitude;
+- **Rede viária** importada ou gerada automaticamente quando há centroides;
+- **Cenários salvos** previamente em **JSON** (biblioteca de cenários).
+
+### Campos compatíveis
+
+Para a tabela de **zonas**, o ALIME procura colunas com nomes equivalentes a:
+
+- `zone_id`
+- `zone_name`
+- `zone_type`
+- `population`
+- `jobs`
+- `schools`
+- `commerce`
+- `industry`
+- `production`
+- `attraction`
+- `generation_weight`
+- `attraction_weight`
+- `centroid_lat`
+- `centroid_lon`
+- `notes`
+
+Para **vetores de produção e atração** (etapa 3), basta um arquivo com:
+
+- `zone_id`
+- `production`
+- `attraction`
+
+O ALIME tem detector automático de colunas: aliases comuns como `zona`, `id`, `produção`, `atração`, `origem`, `destino`, `lat`, `lon` são reconhecidos. Se a heurística falhar, o usuário mapeia manualmente as colunas na própria interface.
+
+Para a **matriz de impedância** (etapa 4), basta uma matriz **quadrada** cuja primeira coluna e cabeçalho contenham os `zone_id` na **mesma ordem** das zonas cadastradas no estudo.
+
+---
+
+## Matriz de impedância
+
+A etapa 4 (Distribuição) **exige uma matriz de impedância válida** para rodar o modelo gravitacional. Sem ela, o ALIME **não gera** matriz O-D — exibe um aviso e bloqueia o cálculo.
+
+A matriz de impedância representa o **custo generalizado** de viajar entre cada par de zonas. Pode estar expressa em:
+
+- **tempo** (minutos) — opção mais comum;
+- **distância** (km);
+- **custo generalizado** (combinação de tempo + atraso por interferências + outros pesos).
+
+### Como o ALIME obtém a matriz
+
+Dentro da etapa 4, o usuário escolhe **uma** das fontes:
+
+- **Calcular dos centroides** — usa Haversine sobre `centroid_lat` / `centroid_lon` e converte em tempo via velocidade média configurável. Exige centroides válidos em **todas** as zonas; se algum estiver faltando, o ALIME lista os `zone_id` problemáticos e bloqueia o cálculo.
+- **Importar CSV/Excel** — upload de matriz quadrada com índices iguais aos `zone_id` cadastrados.
+- **Editar manualmente** — editor visual de uma matriz n×n diretamente na interface.
+- **Matriz exemplo** — disponível como botão temporário para validação rápida do modelo.
+
+### Validação automática
+
+Antes de aceitar uma matriz, o ALIME verifica:
+
+- shape quadrado e compatível com o número de zonas;
+- ausência de **NaN** e **infinitos**;
+- valores **≥ 0**;
+- tratamento da diagonal (zeros são substituídos por um custo mínimo configurável para evitar singularidades no atrito);
+- denominador gravitacional `Σ_j(A_j · f(c_ij)) > 0` para cada origem.
+
+Se algo falha, o usuário vê uma mensagem amigável (em vermelho) no lugar dos cards — **nunca um `nan` silencioso**.
+
+---
+
 ## Modelo matemático (resumido)
 
 O ALIME combina **balanceamento de vetores**, **distribuição gravitacional**, **repartição modal**, **atribuição all-or-nothing**, **modelagem de interferências urbanas** e **avaliação exploratória de custo social**. Detalhes completos em [`docs/modelo_matematico.md`](docs/modelo_matematico.md).
@@ -217,11 +297,11 @@ Por construção, `Σ_j T_ij = P_i` (cada linha respeita a produção). As colun
 
 ```
 c_ij = tempo_movimento + atraso_interferencias
-f(c_ij) = 1 / c_ij^β       (atrito potência)
-f(c_ij) = exp(-β · c_ij)   (atrito exponencial)
+f(c_ij) = 1 / max(c_ij, c_min)^β       (atrito potência)
+f(c_ij) = exp(-β · max(c_ij, c_min))   (atrito exponencial)
 ```
 
-O usuário escolhe a função de atrito e o coeficiente `β`.
+O usuário escolhe a função de atrito, o coeficiente `β` e o custo mínimo `c_min` (piso que evita divisão por zero).
 
 ### 4. Repartição modal
 
@@ -241,9 +321,9 @@ x_a = Σ_ij T_ij · δ_{a,ij}
 
 Implementação via `networkx.shortest_path` sobre uma rede k-vizinhos (ou rede importada, ou OSMnx quando disponível).
 
-### 6. Interferências urbanas (ferrovia)
+### 6. Interferências urbanas
 
-Para passagens em nível ferroviárias, o tempo de impacto por evento é:
+Para passagens em nível **ferroviárias**, o tempo de impacto por evento é:
 
 ```
 tempo_ocupacao  = (L_trem / v_trem) · 60
@@ -251,9 +331,20 @@ tempo_bloqueio  = tempo_ocupacao · fator_operacional
 tempo_total     = tempo_bloqueio + tempo_dissipacao_fila
 ```
 
-Outras interferências (alagamento, semáforo, ponte estreita, gargalo) são parametrizadas por bloqueios/dia, duração média e dissipação de fila.
+Outras interferências (**alagamento, semáforo, ponte estreita, gargalo, obra, acidente**) são parametrizadas por `blocks_per_day`, `average_blockage_min` e `queue_dissipation_min`.
 
-### 7. Custo social exploratório
+### 7. Custo social do atraso
+
+A conversão monetária do atraso segue uma cadeia simples:
+
+- **Pessoas afetadas:** quantas pessoas são impactadas em média a cada evento de interferência (fluxo de veículos × ocupação média);
+- **Horas perdidas:** quantas horas-pessoa de atraso por dia o conjunto de interferências gera;
+- **Valor do tempo (R$/h):** quanto cada hora-pessoa perdida representa em valor monetário (configurável pelo usuário);
+- **Custo diário:** horas perdidas × valor do tempo;
+- **Custo anual:** custo diário × número de dias úteis no ano;
+- **Benefício anual de uma intervenção:** diferença entre o custo anual do cenário-base e o custo anual do cenário com a obra proposta (`custo_base − custo_cenario`).
+
+Em forma de fórmula:
 
 ```
 pessoas_afetadas = fluxo_afetado · ocupacao_media
@@ -271,26 +362,31 @@ Valores default: ocupação 1,4 pessoas/veículo, valor do tempo R$ 18/h, 252 di
 
 ## Limitações
 
-- **Modelo gravitacional simplificado**, sem calibração formal a partir de pesquisa O-D real.
-- **Atribuição all-or-nothing** — não considera congestionamento nem equilíbrio (Wardrop/BPR).
-- **Repartição modal global** na versão atual (modo básico); modo por zona/par O-D em versões futuras.
-- **Custos sociais** baseados em valores genéricos do tempo, não em pesquisa local.
-- **Rede simplificada (k-vizinhos)** quando OSMnx não está disponível — abstração geométrica, não topológica.
-- **Não substitui** EVTEA, contagem volumétrica, microssimulação ou projeto executivo.
+- **Modelo exploratório:** o ALIME é uma ferramenta de apoio à decisão preliminar, não um modelo definitivo.
+- **Dependência da qualidade dos dados de entrada:** zonas mal definidas, vetores P/A imprecisos ou matriz de impedância grosseira produzem resultados igualmente grosseiros.
+- **Modelo gravitacional simplificado:** sem calibração formal a partir de pesquisa O-D real; coeficiente β é informado manualmente.
+- **Atribuição all-or-nothing:** toda a demanda de cada par O-D é alocada no caminho mínimo, sem multi-caminho.
+- **Sem congestionamento calibrado:** não há função capacidade-velocidade (BPR) nem equilíbrio de Wardrop; tempos não dependem do fluxo alocado.
+- **Repartição modal global** na versão atual (modo básico); modo por zona/par O-D fica para versões futuras.
+- **Custos sociais baseados em valores genéricos** do tempo, não em pesquisa local.
+- **Não substitui** EVTEA, contagem volumétrica, pesquisa O-D domiciliar, microssimulação ou projeto executivo.
 
 Ver [`docs/limitacoes.md`](docs/limitacoes.md) para a lista completa.
 
 ---
 
-## Próximos passos
+## Evoluções futuras
 
-- Calibração com dados reais quando disponíveis (contagem volumétrica, pesquisa O-D);
-- Atribuição em equilíbrio incremental (BPR);
-- Modelos logit binomiais/multinomiais para repartição modal;
-- Modo avançado: repartição modal por zona ou por par O-D;
-- Integração com bases oficiais (DNIT, IBGE, ANTT, OSM);
-- Exportação PDF nativa (atualmente HTML + Markdown);
-- Calibração automática de `β` via método dos mínimos quadrados.
+- **Integração com OSMnx** para baixar rede viária real de qualquer município brasileiro;
+- **Alocação avançada** com equilíbrio incremental (BPR) ou stochastic user equilibrium;
+- **Calibração com contagens reais** (volumes por hora-pico) para ajustar β e validar fluxos;
+- **Modelos de repartição modal mais robustos** (logit binomial/multinomial em vez de coeficientes fixos);
+- **Modo avançado de repartição modal** por zona ou por par O-D;
+- **Integração com bases oficiais** (IBGE, IPEA, DNIT, ANTT, SNV) para preenchimento automático;
+- **Exportação GIS** (shapefile, GeoJSON, GPKG) das zonas, rede e fluxos alocados;
+- **Integração futura com SUMO e AequilibraE** para microssimulação encadeada;
+- **Exportação PDF nativa** (atualmente HTML + Markdown);
+- **Calibração automática de β** via método dos mínimos quadrados sobre matriz de referência.
 
 ---
 
