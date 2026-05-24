@@ -42,6 +42,9 @@ def split_matrix(T: np.ndarray, shares: dict[str, float]) -> dict[str, np.ndarra
 
 
 def render() -> None:
+    from . import workflow
+    if not workflow.render_guard("reparticao_modal"):
+        return
     ui_theme.section_title(5, "Repartição Modal — Como vou?")
     st.markdown(
         "<p style='color:#B8C0CC'>Defina como as viagens da matriz O-D se distribuem "

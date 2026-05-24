@@ -124,12 +124,19 @@ def _generate_demo_files() -> None:
 
 
 def render() -> None:
+    from . import workflow
+    if not workflow.render_guard("atualizacao"):
+        return
     ui_theme.section_title("🔄", "Atualização de Dados")
     st.markdown(
         "<p style='color:#B8C0CC'>Controle versionamento da base, carregue o estudo "
         "demonstrativo e ajuste parâmetros globais (valor do tempo, ocupação etc.).</p>",
         unsafe_allow_html=True,
     )
+
+    # Checklist consolidado da consistência do estudo
+    workflow.render_consistency_check()
+    st.markdown("---")
 
     cc = st.columns(3)
     with cc[0]:

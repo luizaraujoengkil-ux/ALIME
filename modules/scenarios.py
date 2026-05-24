@@ -286,6 +286,9 @@ def run_improvement_scenario(name: str, improvements: list[dict],
 # UI
 # ============================================================
 def render() -> None:
+    from . import workflow
+    if not workflow.render_guard("cenarios"):
+        return
     ui_theme.section_title(8, "Cenários")
     ui_theme.disclaimer_box()
 

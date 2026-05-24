@@ -47,6 +47,9 @@ def _row(sc: dict, base: dict, params: dict) -> dict:
 
 
 def render() -> None:
+    from . import workflow
+    if not workflow.render_guard("comparacao"):
+        return
     ui_theme.section_title("📊", "Comparação Multicenário")
     ui_theme.disclaimer_box()
 
@@ -54,10 +57,17 @@ def render() -> None:
     favs = st.session_state.get("favorite_scenarios", [])
 
     if base is None:
-        ui_theme.warn("Gere o cenário-base antes (8. Cenários → Cenário-base).")
+        ui_theme.warning_message("Gere o cenário-base antes (8. Cenários → Cenário-base).")
         return
     if not favs:
-        ui_theme.info("Salve cenários na **Biblioteca** para compará-los aqui.")
+        ui_theme.info("Salve cenários na <b>Biblioteca</b> para compará-los aqui.")
+        if st.button("✓ Confirmar: comparação não será realizada neste estudo",
+                      use_container_width=True):
+            workflow.mark_skipped(
+                "comparacao",
+                "Etapa marcada como concluída sem cenários para comparar."
+            )
+        ui_theme.show_status("skip_comparacao")
         return
 
     params = st.session_state["params"]

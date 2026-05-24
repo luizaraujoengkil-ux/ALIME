@@ -25,6 +25,9 @@ PROBLEM_TYPES = [
 
 
 def render() -> None:
+    from . import workflow
+    if not workflow.render_guard("municipio"):
+        return
     ui_theme.section_title(1, "Município e Estudo")
     st.markdown(
         "<p style='color:#B8C0CC'>Defina os dados básicos do estudo. Esses parâmetros "

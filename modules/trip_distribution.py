@@ -312,6 +312,9 @@ def _impedance_status_block(M: np.ndarray | None, zone_ids: list[str]) -> None:
 # UI principal
 # ============================================================
 def render() -> None:
+    from . import workflow
+    if not workflow.render_guard("distribuicao"):
+        return
     ui_theme.section_title(4, "Distribuição — Para onde vou?")
     st.markdown(
         "<p style='color:#B8C0CC'>"

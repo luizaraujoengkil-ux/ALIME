@@ -236,6 +236,84 @@ p, span, label, li, div { color: var(--text); }
   margin: 0.8rem 0;
 }
 
+/* --------------------- Trilha de progresso --------------------- */
+.alime-trail {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 12px;
+  background: linear-gradient(180deg, var(--bg-card) 0%, var(--bg-second) 100%);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  margin: 6px 0 14px 0;
+}
+.trail-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 0.76rem;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+  border: 1px solid transparent;
+  white-space: nowrap;
+  transition: transform 0.12s ease;
+}
+.trail-chip.not_started {
+  background: rgba(168, 181, 197, 0.07);
+  color: var(--text-mute);
+  border-color: var(--border);
+}
+.trail-chip.in_progress {
+  background: rgba(212, 169, 60, 0.15);
+  color: var(--amber-hover);
+  border-color: var(--amber-soft);
+}
+.trail-chip.completed {
+  background: rgba(130, 195, 158, 0.15);
+  color: var(--moss);
+  border-color: rgba(130, 195, 158, 0.55);
+}
+.trail-chip.error,
+.trail-chip.blocked {
+  background: rgba(199, 84, 68, 0.15);
+  color: var(--crimson);
+  border-color: var(--crimson);
+}
+.trail-chip.current {
+  background: rgba(107, 168, 201, 0.18) !important;
+  color: var(--teal-info) !important;
+  border-color: var(--teal-info) !important;
+  box-shadow: 0 0 0 2px rgba(107, 168, 201, 0.35);
+  transform: scale(1.04);
+}
+.trail-sep {
+  color: var(--text-mute);
+  opacity: 0.4;
+  font-size: 0.85rem;
+  padding: 0 1px;
+}
+
+/* --------------------- Checklist de verificação --------------------- */
+.alime-checklist {
+  list-style: none;
+  padding: 0;
+  margin: 6px 0 0 0;
+}
+.alime-checklist li {
+  padding: 4px 0;
+  font-size: 0.9rem;
+  border-bottom: 1px dashed var(--border);
+}
+.alime-checklist li:last-child { border-bottom: none; }
+.alime-checklist li.check-completed   { color: var(--moss); }
+.alime-checklist li.check-in_progress { color: var(--amber-hover); }
+.alime-checklist li.check-not_started { color: var(--text-mute); }
+.alime-checklist li.check-error,
+.alime-checklist li.check-blocked     { color: var(--crimson); }
+
 /* --------------------- Sidebar nav legado --------------------- */
 .alime-nav-item {
   background: var(--bg-card);

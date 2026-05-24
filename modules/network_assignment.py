@@ -168,6 +168,9 @@ def compute_indicators(edges_df: pd.DataFrame, T: np.ndarray,
 # UI
 # ============================================================
 def render() -> None:
+    from . import workflow
+    if not workflow.render_guard("atribuicao"):
+        return
     ui_theme.section_title(6, "Atribuição — Por onde vou?")
     ui_theme.warn("Esta atribuição é simplificada (all-or-nothing) e **não substitui** modelo de tráfego calibrado.")
 

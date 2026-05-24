@@ -154,6 +154,9 @@ def markdown_to_html(md: str, title: str = "Relatório ALIME") -> str:
 
 
 def render() -> None:
+    from . import workflow
+    if not workflow.render_guard("relatorios"):
+        return
     ui_theme.section_title("📝", "Relatórios")
     ui_theme.disclaimer_box()
 
@@ -166,10 +169,12 @@ def render() -> None:
 
     with tab1:
         if base is None:
-            ui_theme.warn("Gere o cenário-base antes.")
+            ui_theme.warning_message("Gere o cenário-base antes.")
         else:
             md = build_markdown("base", study, params, base, favs)
             st.code(md[:1200] + ("…" if len(md) > 1200 else ""), language="markdown")
+            # Apenas visualizar o markdown já indica conclusão da etapa
+            st.session_state["report_generated"] = True
             colA, colB = st.columns(2)
             with colA:
                 st.download_button("⬇ Baixar Markdown", md.encode("utf-8"),

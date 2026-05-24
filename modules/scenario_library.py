@@ -43,6 +43,9 @@ def import_scenario_json(file) -> dict:
 
 
 def render() -> None:
+    from . import workflow
+    if not workflow.render_guard("biblioteca"):
+        return
     ui_theme.section_title("📚", "Biblioteca de Cenários")
     st.markdown(
         "<p style='color:#B8C0CC'>Salve até 5 cenários favoritos para comparação. "
@@ -87,6 +90,14 @@ def render() -> None:
     st.markdown("### Favoritos")
     if not favs:
         ui_theme.info("Biblioteca vazia.")
+        if st.button("✓ Confirmar: não desejo salvar cenários favoritos",
+                      use_container_width=True):
+            from . import workflow
+            workflow.mark_skipped(
+                "biblioteca",
+                "Etapa marcada como concluída sem favoritos."
+            )
+        ui_theme.show_status("skip_biblioteca")
         return
     for i, sc in enumerate(favs):
         with st.container(border=True):

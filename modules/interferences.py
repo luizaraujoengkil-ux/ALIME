@@ -71,6 +71,9 @@ def compute_rail(train_length_km: float, train_speed_kmh: float,
 
 
 def render() -> None:
+    from . import workflow
+    if not workflow.render_guard("interferencias"):
+        return
     ui_theme.section_title(7, "Interferências e Barreiras")
     st.markdown(
         "<p style='color:#B8C0CC'>Cadastre pontos ou trechos de interferência. "
@@ -166,6 +169,14 @@ def render() -> None:
         items = st.session_state["interferences"]
         if not items:
             ui_theme.info("Nenhuma interferência cadastrada ainda.")
+            if st.button("✓ Confirmar: não há interferências neste estudo",
+                          use_container_width=True):
+                from . import workflow
+                workflow.mark_skipped(
+                    "interferencias",
+                    "Etapa marcada como concluída sem interferências cadastradas."
+                )
+            ui_theme.show_status("skip_interferencias")
         else:
             df = pd.DataFrame([{
                 "id": it["interference_id"],

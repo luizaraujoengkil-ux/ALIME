@@ -175,6 +175,9 @@ def _read_uploaded(uploaded) -> pd.DataFrame:
 
 
 def render() -> None:
+    from . import workflow
+    if not workflow.render_guard("zonas"):
+        return
     ui_theme.section_title(2, "Zonas e Microzonas")
     st.markdown(
         "<p style='color:#B8C0CC'>"

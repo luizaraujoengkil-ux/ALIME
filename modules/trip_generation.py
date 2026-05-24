@@ -124,6 +124,9 @@ def _render_attraction_check_table(zones_df: pd.DataFrame) -> None:
 
 
 def render() -> None:
+    from . import workflow
+    if not workflow.render_guard("geracao"):
+        return
     ui_theme.section_title(3, "Geração — Vou ou não vou?")
     ui_theme.info(
         "O balanceamento sempre usa os valores <b>originais</b> como referência. "

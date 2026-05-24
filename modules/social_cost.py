@@ -48,6 +48,9 @@ def social_cost(assignment: dict, params: dict) -> dict:
 
 
 def render() -> None:
+    from . import workflow
+    if not workflow.render_guard("custo_social"):
+        return
     ui_theme.section_title("💸", "Tempo × Custo Social")
     ui_theme.disclaimer_box()
 
@@ -69,6 +72,9 @@ def render() -> None:
             min_value=1, max_value=365, value=int(p["operating_days"]), step=1,
         )
     st.session_state["params"] = p
+
+    # Apenas configurar parâmetros já marca esta etapa como concluída
+    st.session_state["social_cost_computed"] = True
 
     base = st.session_state.get("base_scenario")
     if base:
