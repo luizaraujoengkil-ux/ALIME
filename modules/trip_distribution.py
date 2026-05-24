@@ -32,26 +32,6 @@ from . import ui_theme, validation, map_utils
 
 
 # ============================================================
-# Matriz Tavares (exemplo 9×9 para testes)
-# ============================================================
-TAVARES_ZONE_IDS = [
-    "ZT01", "ZT02", "ZT03", "ZT04", "ZT05",
-    "ZTE01", "ZTE02", "ZTE03", "ZTE04",
-]
-TAVARES_MATRIX = np.array([
-    [ 0,  5,  6, 12, 20, 25, 18, 20, 22],
-    [ 5,  0,  8, 15, 22, 28, 21, 23, 25],
-    [ 6,  8,  0,  7, 18, 20, 15, 17, 19],
-    [12, 15,  7,  0, 15, 15,  8, 10, 12],
-    [20, 22, 18, 15,  0, 25, 20, 22, 24],
-    [25, 28, 20, 15, 25,  0, 22, 24, 26],
-    [18, 21, 15,  8, 20, 22,  0,  3,  5],
-    [20, 23, 17, 10, 22, 24,  3,  0,  3],
-    [22, 25, 19, 12, 24, 26,  5,  3,  0],
-], dtype=float)
-
-
-# ============================================================
 # Núcleo matemático
 # ============================================================
 def haversine_km(lat1, lon1, lat2, lon2) -> float:
@@ -388,7 +368,7 @@ def render() -> None:
         _impedance_status_block(current_M, zone_ids)
 
         st.markdown("### Fontes")
-        cc = st.columns(4)
+        cc = st.columns(3)
         with cc[0]:
             use_centroids = st.button("🌍 Calcular dos centroides",
                                        use_container_width=True)
@@ -399,10 +379,6 @@ def render() -> None:
         with cc[2]:
             edit_manual = st.button("✏ Editar manualmente",
                                      use_container_width=True)
-        with cc[3]:
-            use_tavares = st.button("📐 Matriz Tavares (9×9)",
-                                     use_container_width=True,
-                                     disabled=(n != 9))
 
         # --- Calcular dos centroides ---
         if use_centroids:
@@ -450,21 +426,6 @@ def render() -> None:
                                             "<br/>".join(f"• {e}" for e in chk["errors"]))
             except Exception as e:
                 ui_theme.error_message(f"Erro ao ler arquivo: {e}")
-
-        # --- Botão Tavares ---
-        if use_tavares:
-            if n != 9:
-                ui_theme.error_message(
-                    f"A matriz Tavares é 9×9, mas você tem {n} zonas cadastradas. "
-                    f"Cadastre exatamente 9 zonas para usar esta matriz exemplo."
-                )
-            else:
-                st.session_state["impedance"] = TAVARES_MATRIX.copy()
-                st.session_state["impedance_source"] = "tavares"
-                ui_theme.remember_status(
-                    "impedance_loaded", "success",
-                    "Matriz Tavares 9×9 carregada. Use-a apenas para validação do modelo."
-                )
 
         ui_theme.show_status("impedance_loaded")
 

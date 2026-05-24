@@ -232,12 +232,11 @@ A matriz de impedância representa o **custo generalizado** de viajar entre cada
 
 ### Como o ALIME obtém a matriz
 
-Dentro da etapa 4, o usuário escolhe **uma** das fontes:
+Dentro da etapa 4, o usuário escolhe **uma** das três fontes genéricas:
 
 - **Calcular dos centroides** — usa Haversine sobre `centroid_lat` / `centroid_lon` e converte em tempo via velocidade média configurável. Exige centroides válidos em **todas** as zonas; se algum estiver faltando, o ALIME lista os `zone_id` problemáticos e bloqueia o cálculo.
 - **Importar CSV/Excel** — upload de matriz quadrada com índices iguais aos `zone_id` cadastrados.
 - **Editar manualmente** — editor visual de uma matriz n×n diretamente na interface.
-- **Matriz exemplo** — disponível como botão temporário para validação rápida do modelo.
 
 ### Validação automática
 
