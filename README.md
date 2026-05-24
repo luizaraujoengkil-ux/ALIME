@@ -296,5 +296,5 @@ Ver [`docs/limitacoes.md`](docs/limitacoes.md) para a lista completa.
 
 ## Autoria
 
-Desenvolvido por **Luiz Araújo** — [luiz.junior@ime.eb.br](mailto:luiz.junior@ime.eb.br)
+Desenvolvido por **Luiz Araujo** — [luiz.junior@ime.eb.br](mailto:luiz.junior@ime.eb.br)
 IME — Instituto Militar de Engenharia
