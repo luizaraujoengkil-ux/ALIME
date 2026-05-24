@@ -28,18 +28,51 @@ def balance_vectors(
     method: Method = "ajustar_atracoes",
     target_total: float | None = None,
 ) -> dict:
-    """Balanceia vetores P e A conforme o método escolhido.
+    """Balanceia vetores P (produção) e A (atração) conforme o método escolhido.
+
+    IMPORTANTE — as entradas `productions` e `attractions` devem ser sempre os
+    valores ORIGINAIS, nunca valores já balanceados. Caso contrário, o fator
+    aplicado em uma segunda chamada virá próximo de 1 (porque os totais já
+    foram equalizados na primeira chamada).
 
     Matemática:
-        ΣP = Σ_i P_i
-        ΣA = Σ_j A_j
 
-        - "ajustar_atracoes":    A'_j = A_j · (ΣP / ΣA)
-        - "ajustar_producoes":   P'_i = P_i · (ΣA / ΣP)
-        - "normalizar_para_total": P'_i = P_i · (T/ΣP),  A'_j = A_j · (T/ΣA)
-        - "manter_sem_balancear": devolve P e A inalterados.
+        ΣP_orig = Σ_i P_i
+        ΣA_orig = Σ_j A_j
 
-    Retorna dict com: P', A', ΣP, ΣA, fator aplicado, erro relativo final, método.
+        "ajustar_atracoes":
+            factor = ΣP_orig / ΣA_orig
+            A'_j   = A_j · factor       (P_i permanece inalterado)
+
+        "ajustar_producoes":
+            factor = ΣA_orig / ΣP_orig
+            P'_i   = P_i · factor       (A_j permanece inalterado)
+
+        "normalizar_para_total" (T = target_total):
+            P'_i = P_i · (T / ΣP_orig)
+            A'_j = A_j · (T / ΣA_orig)
+
+        "manter_sem_balancear":
+            P e A retornam inalterados (apenas para diagnóstico).
+
+    Retorna dict com:
+        - P, A                        : vetores resultantes (np.ndarray)
+        - sumP_original, sumA_original
+        - sumP_final, sumA_final
+        - factor                      : fator aplicado (1.0 se nada mudou)
+        - rel_error                   : |ΣP_final - ΣA_final| / max(...)
+        - method                      : método utilizado
+        - diff_original               : sumP_original - sumA_original
+
+    Exemplo (caso de teste fornecido pelo usuário em maio/2026):
+
+        >>> P = [1615, 1310, 1107, 881, 1038, 3050, 95, 50, 30]   # ΣP = 9176
+        >>> A = [2900,  700,  600,1050,  300, 3050, 95, 50, 30]   # ΣA = 8775
+        >>> r = balance_vectors(P, A, method="ajustar_atracoes")
+        >>> round(r["factor"], 6)
+        1.045698
+        >>> round(r["sumA_final"], 2)
+        9176.0
     """
     P = np.asarray(productions, dtype=float).copy()
     A = np.asarray(attractions, dtype=float).copy()
@@ -78,6 +111,7 @@ def balance_vectors(
         "sumA_original": sumA,
         "sumP_final": sumP_new,
         "sumA_final": sumA_new,
+        "diff_original": sumP - sumA,
         "factor": factor,
         "rel_error": err,
         "method": method,

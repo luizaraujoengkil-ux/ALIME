@@ -42,17 +42,50 @@ def _empty_df() -> pd.DataFrame:
 
 
 def _coerce(df: pd.DataFrame) -> pd.DataFrame:
-    """Garante todas as colunas esperadas e tipos numéricos básicos."""
+    """Garante todas as colunas esperadas e tipos numéricos básicos.
+
+    Também cria/sincroniza as colunas-sombra `production_original` e
+    `attraction_original`, usadas pelo balanceamento da etapa 3 como
+    valores fixos de referência (não mudam quando o usuário aplica
+    balanceamento múltiplas vezes).
+    """
     df = df.copy()
     for c in ZONE_COLUMNS:
         if c not in df.columns:
             df[c] = None
-    df = df[ZONE_COLUMNS]
+    # Colunas-sombra para o balanceamento (não fazem parte de ZONE_COLUMNS
+    # para não aparecerem na tabela editável principal).
+    for c in ("production_original", "attraction_original"):
+        if c not in df.columns:
+            df[c] = None
+    df = df[ZONE_COLUMNS + ["production_original", "attraction_original"]]
     num_cols = ["population", "jobs", "schools", "commerce", "industry",
-                "production", "attraction", "generation_weight", "attraction_weight",
+                "production", "attraction",
+                "production_original", "attraction_original",
+                "generation_weight", "attraction_weight",
                 "centroid_lat", "centroid_lon"]
     for c in num_cols:
         df[c] = pd.to_numeric(df[c], errors="coerce")
+
+    # Se um original estiver vazio (NaN), tomamos o valor corrente como
+    # baseline — ex.: primeira importação, ou usuário ainda não chegou
+    # na etapa 3.
+    mask_p = df["production_original"].isna()
+    mask_a = df["attraction_original"].isna()
+    df.loc[mask_p, "production_original"] = df.loc[mask_p, "production"]
+    df.loc[mask_a, "attraction_original"] = df.loc[mask_a, "attraction"]
+    return df
+
+
+def reset_originals(df: pd.DataFrame) -> pd.DataFrame:
+    """Marca os valores ATUAIS de production/attraction como os novos originais.
+
+    Use quando o usuário salva manualmente os vetores ou edita um valor —
+    isso é a "nova baseline" sobre a qual o próximo balanceamento opera.
+    """
+    df = df.copy()
+    df["production_original"] = pd.to_numeric(df["production"], errors="coerce")
+    df["attraction_original"] = pd.to_numeric(df["attraction"], errors="coerce")
     return df
 
 
@@ -124,8 +157,12 @@ def render() -> None:
             key="zones_editor",
         )
         if st.button("💾 Salvar alterações"):
-            st.session_state["zones"] = _coerce(edited)
-            ui_theme.ok(f"{len(edited)} zonas salvas.")
+            # Salvar manualmente = marcar como nova baseline (originais).
+            # Invalida balanceamento anterior para evitar inconsistência.
+            df_new = reset_originals(_coerce(edited))
+            st.session_state["zones"] = df_new
+            st.session_state["balancing"] = None
+            ui_theme.ok(f"{len(edited)} zonas salvas. Valores marcados como originais para o balanceamento.")
 
     with tab_import:
         up = st.file_uploader(
@@ -159,8 +196,9 @@ def render() -> None:
                         rename[c] = "centroid_lon"
                 raw = raw.rename(columns=rename)
                 if st.button("✅ Importar"):
-                    st.session_state["zones"] = _coerce(raw)
-                    ui_theme.ok(f"{len(raw)} zonas importadas.")
+                    st.session_state["zones"] = reset_originals(_coerce(raw))
+                    st.session_state["balancing"] = None
+                    ui_theme.ok(f"{len(raw)} zonas importadas. Valores marcados como originais.")
             except Exception as e:
                 ui_theme.warn(f"Erro ao ler arquivo: {e}")
 
@@ -195,7 +233,8 @@ def render() -> None:
                         "centroid_lat": lat, "centroid_lon": lon, "notes": notes,
                     }
                     df_new = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
-                    st.session_state["zones"] = _coerce(df_new)
+                    st.session_state["zones"] = reset_originals(_coerce(df_new))
+                    st.session_state["balancing"] = None
                     ui_theme.ok(f"Zona {zid} adicionada.")
 
     st.markdown("---")
