@@ -613,7 +613,7 @@ def render() -> None:
     T = st.session_state.get("od_matrix")
     if T is None or not isinstance(T, np.ndarray) or not np.all(np.isfinite(T)):
         ui_theme.info("Configure a matriz de impedância (aba 1) e clique em "
-                       "**Calcular matriz O-D** (aba 2).")
+                       "<b>Calcular matriz O-D</b> (aba 2).")
         return
 
     summary = od_summary(T, A_target=A)
