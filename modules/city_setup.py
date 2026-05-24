@@ -72,10 +72,13 @@ def render() -> None:
     # Aviso de população
     warn = validation.warn_population(study["population"])
     if warn:
-        ui_theme.warn(warn)
+        ui_theme.warning_message(warn)
     else:
         if study["population"] > 0:
-            ui_theme.ok(f"População dentro do escopo do ALIME ({int(study['population'])} hab).")
+            ui_theme.success_message(
+                f"População dentro do escopo do ALIME "
+                f"({int(study['population'])} hab)."
+            )
 
     st.session_state["study"] = study
 

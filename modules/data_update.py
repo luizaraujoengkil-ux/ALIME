@@ -32,12 +32,32 @@ def write_metadata(extra: dict | None = None) -> None:
 
 
 def load_demo() -> None:
-    """Carrega o estudo demonstrativo genérico."""
+    """Carrega o estudo demonstrativo genérico.
+
+    Aplica _coerce + reset_all_layers para garantir que o demo
+    venha já com as 4 colunas (production_original, attraction_original,
+    production_balanced, attraction_balanced) inicializadas.
+    """
+    from . import zones as zones_mod
     zones_path = DEMO_DIR / "zones_demo.csv"
     if not zones_path.exists():
         _generate_demo_files()
     df = pd.read_csv(zones_path)
+    df = zones_mod.reset_all_layers(zones_mod._coerce(df))
     st.session_state["zones"] = df
+    # Invalida estados de etapas posteriores ao recarregar o demo
+    for k in ("balancing_applied", "vectors_saved", "od_matrix_generated",
+              "base_scenario_done", "modal_applied", "assignment_done",
+              "scenario_future_done", "scenario_interdiction_done",
+              "scenario_improvement_done"):
+        from .ui_theme import clear_status
+        clear_status(k)
+    st.session_state["balancing"] = None
+    st.session_state["od_matrix"] = None
+    st.session_state["base_scenario"] = None
+    st.session_state["scenarios"] = []
+    st.session_state["network"] = None
+    st.session_state["assignment"] = None
     st.session_state["study"] = {
         "name": "Estudo demonstrativo",
         "municipality": "Cidade Demonstrativa",

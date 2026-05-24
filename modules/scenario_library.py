@@ -56,14 +56,21 @@ def render() -> None:
     # ---- Adicionar à biblioteca ----
     st.markdown("### Adicionar à biblioteca")
     if not scs:
-        ui_theme.info("Nenhum cenário gerado ainda. Vá à aba **8. Cenários**.")
+        ui_theme.warning_message("Nenhum cenário gerado ainda. Vá à aba <b>8. Cenários</b>.")
     else:
         opts = [f"{s['scenario_id']} - {s['name']} ({s['type']})" for s in scs]
         sel = st.selectbox("Selecione um cenário", opts)
         if st.button("⭐ Salvar cenário para comparação"):
             idx = opts.index(sel)
             ok, msg = add_to_favorites(scs[idx])
-            (ui_theme.ok if ok else ui_theme.warn)(msg)
+            if ok:
+                ui_theme.remember_status(
+                    "favorite_saved", "success",
+                    f"Cenário salvo na Biblioteca de Cenários. {msg}"
+                )
+            else:
+                ui_theme.warning_message(msg)
+        ui_theme.show_status("favorite_saved")
 
     # ---- Importar JSON ----
     st.markdown("### Importar cenário JSON")

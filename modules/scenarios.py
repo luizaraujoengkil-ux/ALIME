@@ -74,10 +74,20 @@ def snapshot_current(name: str = "Cenário 0 — Situação Atual",
 # ============================================================
 def apply_growth(zones_df: pd.DataFrame, g_prod: float, g_attr: float, years: int
                  ) -> pd.DataFrame:
-    """P'_i = P_i · (1 + g_i)^n   ;   A'_j = A_j · (1 + h_j)^n."""
+    """P'_i = P_i · (1 + g_i)^n   ;   A'_j = A_j · (1 + h_j)^n.
+
+    Aplica crescimento sobre os valores BALANCEADOS (que são os inputs
+    canônicos do modelo). Também atualiza as colunas `production`/
+    `attraction` para manter a view editável sincronizada.
+    """
     df = zones_df.copy()
-    df["production"] = pd.to_numeric(df["production"], errors="coerce").fillna(0) * (1 + g_prod) ** years
-    df["attraction"] = pd.to_numeric(df["attraction"], errors="coerce").fillna(0) * (1 + g_attr) ** years
+    pb = pd.to_numeric(df.get("production_balanced", df["production"]), errors="coerce").fillna(0)
+    ab = pd.to_numeric(df.get("attraction_balanced", df["attraction"]), errors="coerce").fillna(0)
+    df["production_balanced"] = pb * (1 + g_prod) ** years
+    df["attraction_balanced"] = ab * (1 + g_attr) ** years
+    # Sincroniza view editável
+    df["production"] = df["production_balanced"]
+    df["attraction"] = df["attraction_balanced"]
     return df
 
 
@@ -85,15 +95,20 @@ def run_future_scenario(name: str, g_prod: float, g_attr: float, years: int,
                         description: str = "") -> dict:
     """Executa um cenário futuro reaproveitando os mesmos parâmetros de impedância
     e repartição modal."""
+    from . import zones as zones_mod
     zones_df = st.session_state["zones"]
     df_future = apply_growth(zones_df, g_prod, g_attr, years)
     # Rebalanceia atrações para igualar produções (mais comum em planejamento)
+    P_in, A_in = zones_mod.get_balanced_vectors(df_future)
     res = balancing.balance_vectors(
-        df_future["production"].to_numpy(),
-        df_future["attraction"].to_numpy(),
+        P_in.to_numpy(),
+        A_in.to_numpy(),
         method="ajustar_atracoes",
     )
-    df_future["production"], df_future["attraction"] = res["P"], res["A"]
+    df_future["production_balanced"] = res["P"]
+    df_future["attraction_balanced"] = res["A"]
+    df_future["production"] = res["P"]
+    df_future["attraction"] = res["A"]
 
     P, A = res["P"], res["A"]
     D = td.distance_matrix(df_future)
@@ -141,10 +156,12 @@ def run_interdiction_scenario(name: str, interdictions: list[dict],
         {"from": str, "to": str, "kind": "total"|"parcial",
          "factor": float (1.0 = sem mudança), "extra_delay_min": float}
     """
+    from . import zones as zones_mod
     zones_df = st.session_state["zones"]
     p = st.session_state["params"]
-    P = pd.to_numeric(zones_df["production"], errors="coerce").fillna(0).to_numpy()
-    A = pd.to_numeric(zones_df["attraction"], errors="coerce").fillna(0).to_numpy()
+    P_s, A_s = zones_mod.get_balanced_vectors(zones_df)
+    P = P_s.to_numpy()
+    A = A_s.to_numpy()
     D = td.distance_matrix(zones_df)
     C = td.impedance_from_distance(D, speed_kmh=p["default_speed_kmh"], mode="tempo",
                                    min_distance_km=p["min_distance_km"])
@@ -203,6 +220,7 @@ def run_improvement_scenario(name: str, improvements: list[dict],
         {"kind": "reduzir_interferencia", "interference_id": str,
          "block_reduction_pct": float}
     """
+    from . import zones as zones_mod
     zones_df = st.session_state["zones"]
     p = st.session_state["params"]
 
@@ -216,8 +234,9 @@ def run_improvement_scenario(name: str, improvements: list[dict],
                 if it["interference_id"] == iid:
                     it["blocks_per_day"] = it.get("blocks_per_day", 0) * (1 - pct)
 
-    P = pd.to_numeric(zones_df["production"], errors="coerce").fillna(0).to_numpy()
-    A = pd.to_numeric(zones_df["attraction"], errors="coerce").fillna(0).to_numpy()
+    P_s, A_s = zones_mod.get_balanced_vectors(zones_df)
+    P = P_s.to_numpy()
+    A = A_s.to_numpy()
     D = td.distance_matrix(zones_df)
     C = td.impedance_from_distance(D, speed_kmh=p["default_speed_kmh"], mode="tempo",
                                    min_distance_km=p["min_distance_km"])
@@ -279,12 +298,16 @@ def render() -> None:
         st.markdown("Gera o **Cenário 0 — Situação Atual** com o que está cadastrado agora.")
         if st.button("✅ Gerar cenário-base"):
             if st.session_state.get("od_matrix") is None:
-                ui_theme.warn("Gere a matriz O-D antes.")
+                ui_theme.error_message("Gere a matriz O-D antes (etapa 4).")
             else:
                 st.session_state["base_scenario"] = snapshot_current()
-                ui_theme.ok("Cenário-base gerado com sucesso. "
-                             "Agora você pode criar cenários futuros, "
-                             "de interdição ou de melhoria.")
+                ui_theme.remember_status(
+                    "base_scenario_done", "success",
+                    "Cenário-base gerado com sucesso. Agora você pode criar "
+                    "cenários futuros, de interdição ou de melhoria."
+                )
+
+        ui_theme.show_status("base_scenario_done")
 
         base = st.session_state.get("base_scenario")
         if base:
@@ -308,10 +331,14 @@ def render() -> None:
             try:
                 sc = run_future_scenario(name, g_prod, g_attr, int(years), desc)
                 st.session_state.setdefault("scenarios", []).append(sc)
-                ui_theme.ok(f"Cenário '{name}' gerado. Total armazenados: "
-                             f"{len(st.session_state['scenarios'])}.")
+                ui_theme.remember_status(
+                    "scenario_future_done", "success",
+                    f"Cenário '{name}' gerado. "
+                    f"Total armazenado nesta sessão: {len(st.session_state['scenarios'])}."
+                )
             except Exception as e:
-                ui_theme.warn(f"Falha: {e}")
+                ui_theme.error_message(f"Falha ao rodar cenário futuro: {e}")
+        ui_theme.show_status("scenario_future_done")
 
     # ---- Interdição ----
     with tab_int:
@@ -337,11 +364,15 @@ def render() -> None:
                 try:
                     sc = run_interdiction_scenario(name, inters, desc)
                     st.session_state.setdefault("scenarios", []).append(sc)
-                    ui_theme.ok(f"Cenário '{name}' gerado.")
+                    ui_theme.remember_status(
+                        "scenario_interdiction_done", "success",
+                        f"Cenário de interdição '{name}' gerado com sucesso."
+                    )
                 except Exception as e:
-                    ui_theme.warn(f"Falha: {e}")
+                    ui_theme.error_message(f"Falha ao rodar cenário de interdição: {e}")
+            ui_theme.show_status("scenario_interdiction_done")
         else:
-            ui_theme.info("Gere a rede em **6. Atribuição** primeiro.")
+            ui_theme.warning_message("Gere a rede em <b>6. Atribuição</b> primeiro.")
 
     # ---- Melhoria ----
     with tab_mel:
@@ -381,9 +412,13 @@ def render() -> None:
             try:
                 sc = run_improvement_scenario(name, imps, cost_estimate=cost, description=desc)
                 st.session_state.setdefault("scenarios", []).append(sc)
-                ui_theme.ok(f"Cenário '{name}' gerado.")
+                ui_theme.remember_status(
+                    "scenario_improvement_done", "success",
+                    f"Cenário de melhoria '{name}' gerado com sucesso."
+                )
             except Exception as e:
-                ui_theme.warn(f"Falha: {e}")
+                ui_theme.error_message(f"Falha ao rodar cenário de melhoria: {e}")
+        ui_theme.show_status("scenario_improvement_done")
 
     st.markdown("---")
     scs = st.session_state.get("scenarios", [])

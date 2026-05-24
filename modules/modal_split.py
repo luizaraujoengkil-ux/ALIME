@@ -52,7 +52,7 @@ def render() -> None:
 
     T = st.session_state.get("od_matrix")
     if T is None:
-        ui_theme.warn("Gere a matriz O-D primeiro (aba 4. Distribuição).")
+        ui_theme.warning_message("Gere a matriz O-D primeiro (aba 4. Distribuição).")
         return
 
     shares = dict(st.session_state["modal_split"])
@@ -75,7 +75,12 @@ def render() -> None:
         st.session_state["modal_split"] = norm
         mats = split_matrix(T, norm)
         st.session_state["modal_matrices"] = mats
-        ui_theme.ok("Repartição aplicada. Matrizes por modo geradas.")
+        ui_theme.remember_status(
+            "modal_applied", "success",
+            "Repartição modal aplicada com sucesso. Matrizes por modo geradas."
+        )
+
+    ui_theme.show_status("modal_applied")
 
     norm = st.session_state["modal_split"]
     mats = st.session_state.get("modal_matrices") or split_matrix(T, norm)

@@ -127,6 +127,102 @@ def test_manter_sem_balancear():
 
 
 # ============================================================
+# Testes do esquema de 4 colunas (production_original,
+# attraction_original, production_balanced, attraction_balanced)
+# ============================================================
+def test_schema_zones_module_creates_four_columns():
+    """zones._coerce + reset_all_layers garantem as 4 colunas."""
+    import pandas as pd
+    from modules import zones as zones_mod
+
+    df_in = pd.DataFrame({
+        "zone_id": [f"ZT0{i+1}" for i in range(9)],
+        "zone_name": ["Centro", "Norte", "Sul", "Ind", "Rural",
+                      "Externo1", "Externo2", "Externo3", "Externo4"],
+        "production": P_REAL,
+        "attraction": A_REAL,
+    })
+    df = zones_mod.reset_all_layers(zones_mod._coerce(df_in))
+    for c in ("production_original", "attraction_original",
+              "production_balanced", "attraction_balanced",
+              "balance_method", "factor_applied"):
+        _assert(c in df.columns, f"coluna {c} ausente após reset_all_layers")
+    # Originais = balanced = production/attraction (estado inicial)
+    _assert(np.allclose(df["production_original"].astype(float), P_REAL),
+            "production_original difere do input")
+    _assert(np.allclose(df["attraction_original"].astype(float), A_REAL),
+            "attraction_original difere do input")
+    _assert(np.allclose(df["production_balanced"].astype(float), P_REAL),
+            "production_balanced != production_original inicialmente")
+    _assert(np.allclose(df["attraction_balanced"].astype(float), A_REAL),
+            "attraction_balanced != attraction_original inicialmente")
+
+
+def test_schema_balancing_updates_only_balanced_columns():
+    """Após balanceamento, *_original ficam intactos; *_balanced recebe."""
+    import pandas as pd
+    from modules import zones as zones_mod
+
+    df = pd.DataFrame({
+        "zone_id": [f"ZT0{i+1}" for i in range(9)],
+        "zone_name": ["x"] * 9,
+        "production": P_REAL,
+        "attraction": A_REAL,
+    })
+    df = zones_mod.reset_all_layers(zones_mod._coerce(df))
+
+    # Simula o que trip_generation faz no botão "Aplicar balanceamento"
+    P_orig = df["production_original"].to_numpy()
+    A_orig = df["attraction_original"].to_numpy()
+    res = balance_vectors(P_orig, A_orig, method="ajustar_atracoes")
+
+    # Escreve apenas em _balanced
+    df["production_balanced"] = res["P"]
+    df["attraction_balanced"] = res["A"]
+    df["balance_method"] = res["method"]
+    df["factor_applied"] = round(res["factor"], 10)
+
+    # Originais permanecem intactos
+    _assert(np.allclose(df["production_original"].astype(float), P_REAL),
+            "production_original foi sobrescrito (regressão!)")
+    _assert(np.allclose(df["attraction_original"].astype(float), A_REAL),
+            "attraction_original foi sobrescrito (regressão!)")
+    # Balanced reflete o resultado do motor
+    _assert(np.allclose(df["production_balanced"].astype(float), P_REAL),
+            "production_balanced != P_original em ajustar_atracoes")
+    expected_A = np.array(A_REAL) * FACTOR_EXPECTED
+    _assert(np.allclose(df["attraction_balanced"].astype(float), expected_A, atol=1e-9),
+            "attraction_balanced divergiu do esperado")
+    _assert(df["balance_method"].iloc[0] == "ajustar_atracoes")
+    _assert(abs(float(df["factor_applied"].iloc[0]) - FACTOR_EXPECTED) < 1e-8)
+
+
+def test_get_balanced_vectors_returns_balanced():
+    """Downstream consumir get_balanced_vectors() retorna o vetor balanceado."""
+    import pandas as pd
+    from modules import zones as zones_mod
+
+    df = pd.DataFrame({
+        "zone_id": [f"ZT0{i+1}" for i in range(9)],
+        "zone_name": ["x"] * 9,
+        "production": P_REAL,
+        "attraction": A_REAL,
+    })
+    df = zones_mod.reset_all_layers(zones_mod._coerce(df))
+    res = balance_vectors(df["production_original"].to_numpy(),
+                          df["attraction_original"].to_numpy(),
+                          method="ajustar_atracoes")
+    df["production_balanced"] = res["P"]
+    df["attraction_balanced"] = res["A"]
+
+    P, A = zones_mod.get_balanced_vectors(df)
+    _assert(abs(float(P.sum()) - SUM_P_EXPECTED) < 1e-6,
+            f"ΣP balanceada incorreta: {P.sum()}")
+    _assert(abs(float(A.sum()) - SUM_P_EXPECTED) < 1e-6,
+            f"ΣA balanceada incorreta: {A.sum()}")
+
+
+# ============================================================
 # Runner standalone
 # ============================================================
 def _run_all() -> int:
@@ -140,6 +236,9 @@ def _run_all() -> int:
         test_reference_case_constants,
         test_normalizar_para_total,
         test_manter_sem_balancear,
+        test_schema_zones_module_creates_four_columns,
+        test_schema_balancing_updates_only_balanced_columns,
+        test_get_balanced_vectors_returns_balanced,
     ]
     failures = []
     for t in tests:

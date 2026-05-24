@@ -143,13 +143,35 @@ def render() -> None:
 
     zones_df = st.session_state.get("zones")
     if zones_df is None or zones_df.empty:
-        ui_theme.warn("Cadastre as zonas primeiro.")
+        ui_theme.warning_message("Cadastre as zonas primeiro.")
         return
 
-    P = validation.numeric_clean(zones_df["production"]).to_numpy()
-    A = validation.numeric_clean(zones_df["attraction"]).to_numpy()
+    # MOTOR USA EXPLICITAMENTE OS VETORES BALANCEADOS.
+    # Fallback para production/attraction só ocorre se as colunas balanced
+    # estiverem ausentes (estudos antigos) — _coerce já faz a migração.
+    from . import zones as zones_mod
+    P_series, A_series = zones_mod.get_balanced_vectors(zones_df)
+    P = P_series.to_numpy()
+    A = A_series.to_numpy()
     zone_ids = zones_df["zone_id"].astype(str).tolist()
     n = len(P)
+
+    # Banner explicando a fonte dos vetores
+    b = st.session_state.get("balancing")
+    if b and b.get("applied"):
+        ui_theme.info(
+            f"Distribuição utilizando <b>vetores balanceados</b> da etapa 3. "
+            f"Σ P usado = <b>{float(P.sum()):,.1f}</b> · "
+            f"Σ A usado = <b>{float(A.sum()):,.1f}</b> · "
+            f"fator aplicado = <b>{b['factor']:.6f}</b>."
+        )
+    else:
+        ui_theme.warning_message(
+            f"Distribuição utilizando vetores <b>originais</b> "
+            f"(o balanceamento ainda não foi aplicado na etapa 3). "
+            f"Σ P = <b>{float(P.sum()):,.1f}</b> · "
+            f"Σ A = <b>{float(A.sum()):,.1f}</b>."
+        )
 
     tab_grav, tab_import = st.tabs(["Modelo gravitacional", "Importar matriz O-D"])
 
@@ -169,9 +191,12 @@ def render() -> None:
                 else:
                     st.session_state["od_matrix"] = raw.to_numpy(dtype=float)
                     st.session_state["od_zone_ids"] = [str(x) for x in raw.index]
-                    ui_theme.ok("Matriz O-D importada.")
+                    ui_theme.remember_status(
+                        "od_matrix_generated", "success",
+                        "Matriz O-D importada com sucesso."
+                    )
             except Exception as e:
-                ui_theme.warn(f"Erro ao ler matriz: {e}")
+                ui_theme.error_message(f"Erro ao ler matriz: {e}")
 
     with tab_grav:
         params = st.session_state["params"]
@@ -206,7 +231,13 @@ def render() -> None:
             st.session_state["od_matrix"] = T
             st.session_state["od_zone_ids"] = zone_ids
             st.session_state["impedance"] = C
-            ui_theme.ok(f"Matriz O-D calculada para {n} zonas (modelo gravitacional).")
+            ui_theme.remember_status(
+                "od_matrix_generated", "success",
+                f"Matriz O-D gerada com sucesso usando os vetores balanceados "
+                f"({n} zonas, modelo gravitacional)."
+            )
+
+    ui_theme.show_status("od_matrix_generated")
 
     # --- Saídas ---
     T = st.session_state.get("od_matrix")

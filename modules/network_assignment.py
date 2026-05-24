@@ -174,7 +174,7 @@ def render() -> None:
     zones_df = st.session_state.get("zones")
     T = st.session_state.get("od_matrix")
     if zones_df is None or zones_df.empty or T is None:
-        ui_theme.warn("Cadastre as zonas e gere a matriz O-D antes de alocar.")
+        ui_theme.warning_message("Cadastre as zonas e gere a matriz O-D antes de alocar.")
         return
 
     cc = st.columns(3)
@@ -201,7 +201,13 @@ def render() -> None:
         st.session_state["network"]["edges"] = edges_df
         ind = compute_indicators(edges_df, T, st.session_state.get("interferences"))
         st.session_state["assignment"] = ind
-        ui_theme.ok("Atribuição concluída.")
+        ui_theme.remember_status(
+            "assignment_done", "success",
+            "Atribuição na rede concluída com sucesso. "
+            "Você já pode cadastrar interferências e gerar o cenário-base."
+        )
+
+    ui_theme.show_status("assignment_done")
 
     net = st.session_state.get("network")
     ind = st.session_state.get("assignment")
