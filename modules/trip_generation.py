@@ -102,6 +102,27 @@ def _render_compare_table(zones_df: pd.DataFrame, b: dict | None) -> None:
     st.dataframe(df, use_container_width=True)
 
 
+def _render_attraction_check_table(zones_df: pd.DataFrame) -> None:
+    """Tabela de conferência específica para validar attraction_balanced.
+
+    Mostra: zone_id | attraction_original | attraction_balanced | delta_attraction
+
+    Útil para o usuário confirmar visualmente que a atração foi de fato
+    multiplicada pelo fator (ZT01: 2900 → 3032.52 com delta +132.52).
+    """
+    A_orig = pd.to_numeric(zones_df["attraction_original"], errors="coerce").fillna(0)
+    A_bal  = pd.to_numeric(zones_df["attraction_balanced"], errors="coerce").fillna(0)
+    delta  = A_bal - A_orig
+    df = pd.DataFrame({
+        "zone_id":             zones_df["zone_id"].astype(str).values,
+        "attraction_original": A_orig.round(2).values,
+        "attraction_balanced": A_bal.round(2).values,
+        "delta_attraction":    delta.apply(lambda x: f"{x:+.2f}").values,
+    })
+    st.markdown("#### Conferência da atração balanceada")
+    st.dataframe(df, use_container_width=True)
+
+
 def render() -> None:
     ui_theme.section_title(3, "Geração — Vou ou não vou?")
     ui_theme.info(
@@ -270,6 +291,18 @@ def render() -> None:
         zdf["balance_method"] = res["method"]
         zdf["factor_applied"] = round(res["factor"], 10)
         st.session_state["zones"] = zdf
+        # IMPORTANTE: refresca a variável local também, senão a tabela
+        # renderizada logo abaixo continua usando o df antigo (stale).
+        zones_df = zdf
+
+        # Confirmação extra: o motor realmente atualizou attraction_balanced?
+        # Se não, é regressão grave — mostra erro em vez de success.
+        a_orig_arr = pd.to_numeric(zdf["attraction_original"], errors="coerce").fillna(0).to_numpy()
+        a_bal_arr  = pd.to_numeric(zdf["attraction_balanced"], errors="coerce").fillna(0).to_numpy()
+        expected_change = (res["method"] in ("ajustar_atracoes", "normalizar_para_total")
+                            and abs(res["factor"] - 1.0) > 1e-9)
+        actually_changed = not np.allclose(a_orig_arr, a_bal_arr, atol=1e-6)
+        attraction_ok = (not expected_change) or actually_changed
 
         st.session_state["balancing"] = {
             "method":         res["method"],
@@ -281,16 +314,23 @@ def render() -> None:
             "diff_original":  res["diff_original"],
             "rel_error":      res["rel_error"],
             "applied":        True,
+            "attraction_updated_ok": attraction_ok,
         }
 
         # Validação automática
         chk = validation.validate_balancing(
             P_orig, A_orig, res["P"], res["A"], res["method"]
         )
-        if chk["ok"]:
+        if chk["ok"] and attraction_ok:
             ui_theme.remember_status(
                 "balancing_applied", "success",
                 "Vetores balanceados e salvos para a etapa de Distribuição."
+            )
+        elif not attraction_ok:
+            ui_theme.remember_status(
+                "balancing_applied", "error",
+                "Balanceamento aplicado mas a coluna <b>attraction_balanced</b> "
+                "não foi atualizada — possível regressão. Reporte este erro."
             )
         else:
             ui_theme.remember_status(
@@ -301,12 +341,17 @@ def render() -> None:
         # Invalida etapas posteriores
         ui_theme.clear_status("od_matrix_generated")
 
+    # Sempre lê a versão MAIS RECENTE de session_state antes de renderizar
+    # — garante que a tabela mostre o estado pós-clique do botão acima.
+    zones_df = st.session_state["zones"]
+
     # Cards e tabela: usar o balanceamento persistido se existir
     b = st.session_state.get("balancing")
     if b and b.get("applied"):
         ui_theme.show_status("balancing_applied")
         _render_balancing_cards(b)
         _render_compare_table(zones_df, b)
+        _render_attraction_check_table(zones_df)
     else:
         # Pré-balanceamento: mostra tabela com *_balanced == *_original
         _render_compare_table(zones_df, None)
