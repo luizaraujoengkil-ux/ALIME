@@ -1,4 +1,10 @@
-"""Atualização de dados e metadata. Também carrega o estudo demonstrativo."""
+"""Atualização de dados, metadata e carregamento opcional de exemplo genérico.
+
+Por padrão, o ALIME inicia VAZIO. O exemplo genérico (6 zonas com
+nomes "Zona A"... e coordenadas sintéticas em torno de (0, 0)) é
+estritamente OPCIONAL e existe apenas para validação rápida do
+motor matemático. Não representa nenhuma cidade real.
+"""
 from __future__ import annotations
 
 import json
@@ -11,16 +17,19 @@ import streamlit as st
 from . import ui_theme
 
 
-DEMO_DIR = Path(__file__).resolve().parent.parent / "data" / "demo"
+EXAMPLES_DIR = Path(__file__).resolve().parent.parent / "data" / "examples"
 METADATA_PATH = Path(__file__).resolve().parent.parent / "data" / "metadata.json"
+
+# Nome do arquivo do exemplo genérico
+EXAMPLE_FILENAME = "zonas_exemplo_generico.csv"
 
 
 def write_metadata(extra: dict | None = None) -> None:
     """Grava o arquivo metadata.json com a configuração atual + carimbos."""
+    study = st.session_state.get("study") or {}
     meta = {
-        "base": "ALIME-demo-v1",
-        "fonte": "Dados de demonstração genéricos",
-        "ano": st.session_state["study"].get("base_year"),
+        "study_name": study.get("name", "—"),
+        "ano": study.get("base_year"),
         "ultima_atualizacao": datetime.now().isoformat(timespec="seconds"),
         "responsavel": st.session_state.get("user", "—"),
         "status": "ok",
@@ -31,21 +40,21 @@ def write_metadata(extra: dict | None = None) -> None:
     METADATA_PATH.write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
-def load_demo() -> None:
-    """Carrega o estudo demonstrativo genérico.
+def load_example() -> None:
+    """Carrega um EXEMPLO GENÉRICO de estudo, apenas para validação.
 
-    Aplica _coerce + reset_all_layers para garantir que o demo
-    venha já com as 4 colunas (production_original, attraction_original,
-    production_balanced, attraction_balanced) inicializadas.
+    Os dados NÃO representam nenhuma cidade real: nomes são "Zona A"..
+    e coordenadas formam uma grade sintética em torno de (0, 0).
     """
     from . import zones as zones_mod
-    zones_path = DEMO_DIR / "zones_demo.csv"
+    zones_path = EXAMPLES_DIR / EXAMPLE_FILENAME
     if not zones_path.exists():
-        _generate_demo_files()
+        _ensure_example_files()
     df = pd.read_csv(zones_path)
     df = zones_mod.reset_all_layers(zones_mod._coerce(df))
     st.session_state["zones"] = df
-    # Invalida estados de etapas posteriores ao recarregar o demo
+
+    # Invalida estados de etapas posteriores
     for k in ("balancing_applied", "vectors_saved", "od_matrix_generated",
               "base_scenario_done", "modal_applied", "assignment_done",
               "scenario_future_done", "scenario_interdiction_done",
@@ -54,56 +63,52 @@ def load_demo() -> None:
         clear_status(k)
     st.session_state["balancing"] = None
     st.session_state["od_matrix"] = None
+    st.session_state["impedance"] = None
     st.session_state["base_scenario"] = None
     st.session_state["scenarios"] = []
     st.session_state["network"] = None
     st.session_state["assignment"] = None
+    st.session_state["interferences"] = []
+
+    # Estudo genérico — sem cidade real, sem UF fixa
     st.session_state["study"] = {
-        "name": "Estudo demonstrativo",
-        "municipality": "Cidade Demonstrativa",
-        "uf": "MG",
-        "population": 18500,
-        "base_year": 2025,
-        "horizon": 2035,
-        "problem_type": "ferrovia",
+        "name": "Exemplo genérico",
+        "area_name": "Área de Estudo (exemplo)",
+        "entry_type": "ponto",
+        "center_lat": 0.0,
+        "center_lon": 0.0,
+        "collection_radius_km": 5.0,
+        "analysis_radius_km": 3.0,
+        "municipality": "",      # campo livre, mantido por compat
+        "uf": "",
+        "country": "",
+        "population": 12000,
+        "base_year": 2026,
+        "horizon": 2036,
+        "problem_type": "outro",
         "mode": "Básico",
     }
-    st.session_state["interferences"] = [{
-        "interference_id": "demo01",
-        "name": "Passagem em nível central",
-        "type": "passagem em nível ferroviária",
-        "geometry_type": "point",
-        "affected_modes": ["veiculo_leve", "veiculo_pesado"],
-        "affected_zones": ["Z01", "Z02"],
-        "affected_edges": [],
-        "blocks_per_day": 14, "average_blockage_min": 3.5,
-        "queue_dissipation_min": 4.0,
-        "capacity_reduction_percent": 0.0,
-        "risk_level": "alto",
-        "periodicity": "recorrente",
-        "lat": -21.870, "lon": -43.330,
-        "train_speed_kmh": 30.0, "train_length_km": 1.2,
-        "operational_factor": 1.0, "trains_per_day": 14,
-        "computed_block_min": 2.4, "computed_total_interference_min": 6.4,
-        "affected_share": 0.20,
-        "notes": "Interferência ferroviária demonstrativa.",
-    }]
     st.session_state["page"] = "2. Zonas"
 
 
-def _generate_demo_files() -> None:
-    """Gera CSV demo mínimo (8 zonas) caso ainda não exista."""
-    DEMO_DIR.mkdir(parents=True, exist_ok=True)
-    # Coordenadas plausíveis (perto de Matias Barbosa/MG só como ilustração)
-    demo = pd.DataFrame([
-        ["Z01", "Centro",       "centro/núcleo urbano",  4500, 1100,  900, -21.860, -43.330],
-        ["Z02", "Bairro Norte", "residencial",            3200,  900,  300, -21.850, -43.335],
-        ["Z03", "Bairro Sul",   "residencial",            2800,  800,  280, -21.875, -43.328],
-        ["Z04", "Industrial",   "industrial/logístico",    600,  150,  900, -21.868, -43.310],
-        ["Z05", "Comercial",    "comercial/serviços",     1100,  300,  650, -21.862, -43.320],
-        ["Z06", "Periferia L",  "residencial",            1900,  600,  180, -21.880, -43.345],
-        ["Z07", "Rural",        "rural/periurbano",       1500,  400,  120, -21.840, -43.305],
-        ["Z08", "Externo",      "externo",                 900,  300,  450, -21.890, -43.360],
+# Alias retrocompatível — alguns lugares ainda chamam load_demo()
+def load_demo() -> None:
+    """Compat: chama load_example()."""
+    load_example()
+
+
+def _ensure_example_files() -> None:
+    """Garante que o CSV de exemplo genérico exista. Conteúdo 100% neutro:
+    nomes 'Zona A'..'Zona F', coordenadas sintéticas em torno de (0, 0).
+    """
+    EXAMPLES_DIR.mkdir(parents=True, exist_ok=True)
+    example = pd.DataFrame([
+        ["ZA", "Zona A", "centro/núcleo urbano",  3000, 900, 1200,  0.010,  0.000],
+        ["ZB", "Zona B", "residencial",           2500, 800,  300,  0.020,  0.000],
+        ["ZC", "Zona C", "residencial",           2200, 700,  250,  0.000,  0.010],
+        ["ZD", "Zona D", "industrial/logístico",   800, 250,  800,  0.000, -0.010],
+        ["ZE", "Zona E", "comercial/serviços",    1500, 500,  650, -0.010,  0.000],
+        ["ZF", "Zona F", "externo",               2000, 600,  400, -0.020,  0.005],
     ], columns=[
         "zone_id", "zone_name", "zone_type",
         "population", "production", "attraction",
@@ -111,8 +116,8 @@ def _generate_demo_files() -> None:
     ])
     for c in ["jobs", "schools", "commerce", "industry",
               "generation_weight", "attraction_weight", "notes"]:
-        demo[c] = ""
-    demo = demo[[
+        example[c] = ""
+    example = example[[
         "zone_id", "zone_name", "zone_type",
         "population", "jobs", "schools", "commerce", "industry",
         "production", "attraction",
@@ -120,7 +125,7 @@ def _generate_demo_files() -> None:
         "centroid_lat", "centroid_lon",
         "notes",
     ]]
-    demo.to_csv(DEMO_DIR / "zones_demo.csv", index=False)
+    example.to_csv(EXAMPLES_DIR / EXAMPLE_FILENAME, index=False)
 
 
 def render() -> None:
@@ -129,8 +134,8 @@ def render() -> None:
         return
     ui_theme.section_title("🔄", "Atualização de Dados")
     st.markdown(
-        "<p style='color:#B8C0CC'>Controle versionamento da base, carregue o estudo "
-        "demonstrativo e ajuste parâmetros globais (valor do tempo, ocupação etc.).</p>",
+        "<p style='color:#B8C0CC'>Controle versionamento da base, carregue um "
+        "exemplo genérico (apenas para validação) e ajuste parâmetros globais.</p>",
         unsafe_allow_html=True,
     )
 
@@ -140,9 +145,12 @@ def render() -> None:
 
     cc = st.columns(3)
     with cc[0]:
-        if st.button("📂 Carregar estudo demonstrativo", use_container_width=True):
-            load_demo()
-            ui_theme.ok("Estudo demonstrativo carregado.")
+        if st.button("🧪 Carregar exemplo genérico (validação)",
+                      use_container_width=True,
+                      help="Carrega 6 zonas sintéticas para validar o motor. "
+                           "Os dados NÃO representam nenhuma cidade real."):
+            load_example()
+            ui_theme.ok("Exemplo genérico carregado. Use apenas para validação do motor.")
     with cc[1]:
         if st.button("💾 Gravar metadata.json", use_container_width=True):
             write_metadata()

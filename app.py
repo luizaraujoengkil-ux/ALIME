@@ -50,11 +50,18 @@ def init_state() -> None:
     defaults: dict = {
         "study": {
             "name": "Novo estudo",
+            "entry_type": "municipio",
+            "area_name": "",
             "municipality": "",
             "uf": "",
+            "country": "",
+            "center_lat": 0.0,
+            "center_lon": 0.0,
+            "collection_radius_km": 5.0,
+            "analysis_radius_km": 3.0,
             "population": 0,
-            "base_year": 2025,
-            "horizon": 2035,
+            "base_year": 2026,
+            "horizon": 2036,
             "problem_type": "outro",
             "mode": "Básico",
         },
@@ -100,8 +107,8 @@ init_state()
 # ============================================================
 PAGES = [
     ("Início",              "🏠"),
-    ("1. Município",        "🏙"),
-    ("2. Zonas",            "🗺"),
+    ("1. Município",        "🗺"),  # rótulo legado, agora "Área de Estudo"
+    ("2. Zonas",            "🧭"),
     ("3. Geração",          "📈"),
     ("4. Distribuição",     "🔀"),
     ("5. Repartição Modal", "🚲"),
@@ -166,12 +173,25 @@ def render_sidebar() -> None:
 # Topbar
 # ============================================================
 def render_topbar() -> None:
+    study = st.session_state.get("study") or {}
+    # Identificação visual da área é genérica:
+    # prefere area_name; fallback para municipality; fallback para tipo de entrada.
+    area_label = (
+        study.get("area_name") or study.get("municipality") or
+        {
+            "municipio":      "Município/Localidade",
+            "ponto":          "Ponto no mapa",
+            "arquivo":        "Arquivo geográfico",
+            "area_desenhada": "Polígono",
+            "corredor":       "Corredor",
+        }.get(study.get("entry_type", "municipio"), "Área de estudo")
+    )
+    uf_label = f" / {study.get('uf')}" if study.get("uf") else ""
     col1, col2, col3, col4 = st.columns([5, 1, 1, 1])
     with col1:
         st.markdown(
-            f"<h3 style='margin:0'>📍 {st.session_state['study'].get('name', 'Novo estudo')}"
-            f" — {st.session_state['study'].get('municipality') or 'município ?'} / "
-            f"{st.session_state['study'].get('uf') or '??'}</h3>",
+            f"<h3 style='margin:0'>📍 {study.get('name', 'Novo estudo')}"
+            f" — {area_label}{uf_label}</h3>",
             unsafe_allow_html=True,
         )
     with col2:
@@ -190,88 +210,88 @@ def render_topbar() -> None:
 # ============================================================
 def render_home() -> None:
     ui_theme.hero()
-
-    # ---- Bloco "Por onde começar?" ----
     p = ui_theme.PALETTE
+
+    # ---- Pergunta principal ----
     st.markdown(
         f"""
         <div class='alime-card' style='border-left:6px solid {p["yellow"]};
                                        margin-top:0.5rem'>
-            <h4 style='margin-bottom:0.4rem'>Por onde começar?</h4>
+            <h4 style='margin-bottom:0.4rem'>Como você deseja iniciar o estudo?</h4>
             <div style='color:{p["text"]};font-size:0.95rem;line-height:1.55'>
-                Escolha <b>uma</b> das três opções abaixo.
-                Se é seu primeiro contato com o ALIME, recomendamos
-                <b style='color:{p["yellow"]}'>Abrir estudo demonstrativo</b> —
-                ele já vem com 8 zonas e leva você direto para a etapa
-                <b>2. Zonas</b>. A partir daí, basta seguir o fluxo
-                <span style='color:{p["text_mute"]}'>
-                    2 → 3 → 4 → 5 → 6 → 7 → 8
-                </span>
-                pelo menu lateral.
+                O ALIME é uma plataforma <b>genérica e aberta</b> de simulação
+                territorial e mobilidade. Você pode iniciar um estudo a partir
+                de um município, ponto no mapa, arquivo geográfico, polígono
+                ou corredor. <b>Nenhuma cidade é fixada</b> — você define o
+                recorte que quiser.
             </div>
         </div>
         """,
         unsafe_allow_html=True,
     )
 
-    # ---- 3 CTAs ----
-    c1, c2, c3 = st.columns(3)
+    # ---- 5 opções de início ----
+    start_options = [
+        ("municipio",      "🏙",  "Município / localidade",
+         "Digite o nome de cidade, bairro ou distrito."),
+        ("ponto",          "📍", "Ponto no mapa",
+         "Defina lat/lon e raio de coleta."),
+        ("arquivo",        "📁", "Arquivo geográfico",
+         "KML, KMZ, GeoJSON ou Shapefile (zip)."),
+        ("area_desenhada", "✏",  "Polígono / área desenhada",
+         "Recorte arbitrário (cole WKT ou pares lat,lon)."),
+        ("corredor",       "↔",  "Corredor / eixo",
+         "Linha de origem a destino + buffer."),
+    ]
 
-    with c1:
-        st.markdown(
-            "<div style='text-align:center;color:#A8B5C5;font-size:0.78rem;"
-            "margin-bottom:0.3rem'>do zero, com seus dados</div>",
-            unsafe_allow_html=True,
-        )
-        if st.button("➕ Criar novo estudo", use_container_width=True, key="cta_new"):
-            st.session_state["page"] = "1. Município"
-            st.rerun()
-        st.markdown(
-            "<div style='text-align:center;color:#A8B5C5;font-size:0.75rem;"
-            "margin-top:0.3rem;line-height:1.4'>"
-            "Vai para <b>1. Município</b> em branco. Você preenche tudo manualmente."
-            "</div>",
-            unsafe_allow_html=True,
-        )
+    cc = st.columns(5)
+    for col, (key, icon, label, desc) in zip(cc, start_options):
+        with col:
+            st.markdown(
+                f"<div style='text-align:center;color:{p['text_mute']};"
+                f"font-size:0.74rem;margin-bottom:0.3rem'>{icon}</div>",
+                unsafe_allow_html=True,
+            )
+            if st.button(label, use_container_width=True, key=f"start_{key}"):
+                # Pré-seleciona o tipo de entrada e leva para etapa 1
+                st.session_state.setdefault("study", {})["entry_type"] = key
+                st.session_state["page"] = "1. Município"
+                st.rerun()
+            st.markdown(
+                f"<div style='text-align:center;color:{p['text_mute']};"
+                f"font-size:0.72rem;margin-top:0.3rem;line-height:1.4'>{desc}</div>",
+                unsafe_allow_html=True,
+            )
 
-    with c2:
-        st.markdown(
-            f"<div style='text-align:center;color:{p['yellow']};font-size:0.78rem;"
-            "margin-bottom:0.3rem;font-weight:700'>★ recomendado para começar</div>",
-            unsafe_allow_html=True,
-        )
-        if st.button("📂 Abrir estudo demonstrativo",
-                     use_container_width=True, key="cta_demo"):
-            from modules import data_update
-            data_update.load_demo()
-            st.rerun()
-        st.markdown(
-            "<div style='text-align:center;color:#A8B5C5;font-size:0.75rem;"
-            "margin-top:0.3rem;line-height:1.4'>"
-            "Carrega <b>8 zonas-exemplo</b> e leva você direto para <b>2. Zonas</b>. "
-            "Daí execute 3 → 4 → 5 → 6."
-            "</div>",
-            unsafe_allow_html=True,
-        )
+    st.markdown("---")
 
-    with c3:
-        st.markdown(
-            "<div style='text-align:center;color:#A8B5C5;font-size:0.78rem;"
-            "margin-bottom:0.3rem'>continuar trabalho salvo</div>",
-            unsafe_allow_html=True,
-        )
-        if st.button("⬆ Importar estudo existente",
+    # ---- Ações secundárias ----
+    cs1, cs2, cs3 = st.columns([1.2, 1.2, 1.2])
+    with cs1:
+        if st.button("⬆ Importar estudo existente (JSON)",
                      use_container_width=True, key="cta_import"):
             st.session_state["page"] = "Biblioteca"
             st.rerun()
-        st.markdown(
-            "<div style='text-align:center;color:#A8B5C5;font-size:0.75rem;"
-            "margin-top:0.3rem;line-height:1.4'>"
-            "Vai para <b>Biblioteca</b>, onde você faz upload de um <b>.json</b> "
-            "salvo anteriormente."
-            "</div>",
-            unsafe_allow_html=True,
-        )
+    with cs2:
+        if st.button("🧪 Carregar exemplo genérico (validação)",
+                     use_container_width=True, key="cta_example"):
+            from modules import data_update
+            data_update.load_example()
+            st.rerun()
+    with cs3:
+        if st.button("📖 Ajuda / Documentação",
+                     use_container_width=True, key="cta_help"):
+            st.session_state["page"] = "Atualização"
+            st.rerun()
+
+    st.markdown(
+        f"<div style='text-align:center;color:{p['text_mute']};"
+        f"font-size:0.74rem;margin-top:0.4rem'>"
+        f"O exemplo genérico contém 6 zonas sintéticas (Zona A..F) e "
+        f"<b>não representa nenhuma cidade real</b>."
+        f"</div>",
+        unsafe_allow_html=True,
+    )
 
     st.markdown("---")
     st.markdown("### Modelo das 4 Etapas")

@@ -1,9 +1,0 @@
-zone_id,zone_name,zone_type,population,jobs,schools,commerce,industry,production,attraction,generation_weight,attraction_weight,centroid_lat,centroid_lon,notes
-Z01,Centro,centro/núcleo urbano,4500,,,,,1100,900,,,-21.860,-43.330,Centro principal
-Z02,Bairro Norte,residencial,3200,,,,,900,300,,,-21.850,-43.335,Predominantemente residencial
-Z03,Bairro Sul,residencial,2800,,,,,800,280,,,-21.875,-43.328,Predominantemente residencial
-Z04,Industrial,industrial/logístico,600,,,,,150,900,,,-21.868,-43.310,Polo industrial
-Z05,Comercial,comercial/serviços,1100,,,,,300,650,,,-21.862,-43.320,Eixo comercial
-Z06,Periferia Leste,residencial,1900,,,,,600,180,,,-21.880,-43.345,Periferia
-Z07,Rural,rural/periurbano,1500,,,,,400,120,,,-21.840,-43.305,Zona periurbana
-Z08,Externo,externo,900,,,,,300,450,,,-21.890,-43.360,Conexão externa

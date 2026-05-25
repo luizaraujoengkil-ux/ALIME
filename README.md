@@ -123,7 +123,7 @@ alime_simulador/
     styles.css                 # CSS do tema escuro/âmbar
     logo_placeholder.png
   data/
-    demo/                      # Dados demo embutidos
+    examples/                  # Exemplos genéricos opcionais (sintéticos)
     uploads/                   # Uploads do usuário
     exports/
       scenarios/               # Cenários salvos (JSON)
@@ -154,10 +154,84 @@ alime_simulador/
 
 ---
 
+## Como iniciar um estudo
+
+O ALIME inicia **vazio**. Ao abrir, o usuário escolhe **uma** das cinco formas
+de iniciar:
+
+| Modo | Quando usar | O que define |
+|---|---|---|
+| 🏙 **Município / localidade** | Cidade pequena, bairro, distrito | Nome da área, UF/país opcionais |
+| 📍 **Ponto no mapa** | Cruzamento crítico, acesso de fábrica, ponte | `(lat, lon)` + raio de coleta |
+| 📁 **Arquivo geográfico** | KML/KMZ/GeoJSON/Shapefile zipado | Geometria + atributos do arquivo |
+| ✏ **Polígono / área desenhada** | Recorte arbitrário | WKT ou pares `lat,lon` |
+| ↔ **Corredor / eixo** | Trecho rodoviário, corredor regional, ferrovia | Linha origem→destino + buffer |
+
+**Nenhuma cidade é fixada.** O ALIME nunca presume Brasil, Minas Gerais ou
+qualquer recorte específico. A escolha é totalmente do usuário.
+
+> O foco preferencial continua sendo áreas de pequeno porte (especialmente
+> até ~20 mil habitantes). Áreas maiores são permitidas, mas o ALIME
+> exibe aviso metodológico.
+
+### Exemplo genérico opcional
+
+Há um arquivo de **exemplo genérico** em `data/examples/zonas_exemplo_generico.csv`
+com 6 zonas sintéticas (`Zona A`..`Zona F`) e coordenadas em torno de
+`(0, 0)`. Carrega-se via botão **"🧪 Carregar exemplo genérico"** na tela
+inicial ou em **Atualização**. Esse exemplo serve apenas para validar o
+motor matemático e **não representa nenhuma cidade real**.
+
+---
+
+## Área de coleta × Área de análise
+
+O ALIME separa explicitamente dois recortes:
+
+- **Área de coleta** — raio em torno do ponto/área para baixar ou organizar
+  dados de entorno (rede viária, POIs, barreiras). Pode ser maior que a área
+  efetivamente analisada.
+- **Área de análise** — recorte que entra de fato no modelo (zonas,
+  vetores P/A, matriz O-D, atribuição).
+
+Regra geral: `área de análise ⊆ área de coleta`.
+
+Intervalos sugeridos:
+
+| Recorte | Raio de coleta |
+|---|---|
+| Bairro / local | 1–5 km |
+| Cidade pequena | 5–20 km |
+| Município + entorno | 20–50 km |
+| Ligação intermunicipal | 50–150 km |
+| Corredor regional | 150–500 km |
+| Macroanálise | > 500 km (apenas modo Avançado) |
+
+Para raios muito grandes (acima de 500 km), o ALIME exibe aviso de
+performance: a coleta de rede e a simulação podem ficar lentas; recomenda-se
+rede simplificada ou arquivos pré-filtrados.
+
+---
+
+## Níveis de qualidade dos dados
+
+O ALIME aceita diferentes níveis de profundidade dos dados de entrada,
+exibindo um indicador na própria etapa 1:
+
+| Nível | Dados mínimos | Saída esperada |
+|---|---|---|
+| **Dados mínimos**       | área + ≥2 zonas + pesos manuais | matriz O-D preliminar, linhas de desejo |
+| **Dados intermediários** | + matriz de impedância e/ou interferências | matriz balanceada, atribuição simplificada, cenário-base |
+| **Dados calibrados**     | + pesquisa O-D observada + contagens reais | comparação confiável de cenários, relatório técnico preliminar |
+
+O nível é avaliado automaticamente conforme o usuário preenche os campos.
+
+---
+
 ## Fluxo do usuário
 
 1. Criar ou abrir estudo
-2. Informar dados básicos do município
+2. Definir a área de estudo (município, ponto, arquivo, polígono ou corredor)
 3. Delimitar área e criar/importar zonas
 4. Inserir produção e atração de viagens
 5. Balancear vetores

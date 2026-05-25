@@ -1,0 +1,7 @@
+zone_id,zone_name,zone_type,population,jobs,schools,commerce,industry,production,attraction,generation_weight,attraction_weight,centroid_lat,centroid_lon,notes
+ZA,Zona A,centro/núcleo urbano,3000,,,,,900,1200,,,0.010,0.000,Exemplo genérico — centro
+ZB,Zona B,residencial,2500,,,,,800,300,,,0.020,0.000,Exemplo genérico — residencial
+ZC,Zona C,residencial,2200,,,,,700,250,,,0.000,0.010,Exemplo genérico — residencial
+ZD,Zona D,industrial/logístico,800,,,,,250,800,,,0.000,-0.010,Exemplo genérico — industrial
+ZE,Zona E,comercial/serviços,1500,,,,,500,650,,,-0.010,0.000,Exemplo genérico — comercial
+ZF,Zona F,externo,2000,,,,,600,400,,,-0.020,0.005,Exemplo genérico — externo

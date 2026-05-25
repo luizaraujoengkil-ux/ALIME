@@ -35,7 +35,7 @@ from . import ui_theme
 # Catálogo das 13 etapas
 # ============================================================
 WORKFLOW_STEPS = [
-    {"key": "municipio",         "label": "1·Município",       "page": "1. Município"},
+    {"key": "municipio",         "label": "1·Área de Estudo",  "page": "1. Município"},
     {"key": "zonas",             "label": "2·Zonas",           "page": "2. Zonas"},
     {"key": "geracao",           "label": "3·Geração",         "page": "3. Geração"},
     {"key": "distribuicao",      "label": "4·Distribuição",    "page": "4. Distribuição"},
@@ -66,7 +66,7 @@ STATUS_ICON = {
 
 # Dicas de próximo passo por etapa pendente
 HINTS = {
-    "municipio":        "Preencha os dados básicos do município (nome, UF, população, ano-base).",
+    "municipio":        "Defina a área de estudo (município, ponto, arquivo, polígono ou corredor) e ano-base.",
     "zonas":            "Cadastre ou importe as zonas de análise (mínimo 2 zonas).",
     "geracao":          "Informe os vetores de produção e atração e aplique o balanceamento.",
     "distribuicao":     "Configure a matriz de impedância e gere a matriz O-D.",
@@ -143,13 +143,20 @@ def evaluate_workflow() -> dict[str, str]:
     skipped = s["skipped_steps"]
     out: dict[str, str] = {}
 
-    # 1. Município
+    # 1. Área de estudo (município/ponto/arquivo/polígono/corredor)
     study = s.get("study") or {}
-    if (study.get("name") and study.get("name") != "Novo estudo"
-            and study.get("municipality") and study.get("uf")
-            and (study.get("population") or 0) > 0):
+    # Considera concluída se: nome do estudo + alguma identificação da área
+    # (nome de área, município OU coordenada central diferente de 0,0).
+    has_area_id = bool(
+        study.get("area_name") or study.get("municipality")
+        or (study.get("center_lat") not in (None, 0.0, 0))
+        or (study.get("center_lon") not in (None, 0.0, 0))
+    )
+    has_name = study.get("name") and study.get("name") != "Novo estudo"
+    has_year = (study.get("base_year") or 0) > 0
+    if has_name and has_area_id and has_year:
         out["municipio"] = "completed"
-    elif study.get("municipality") or (study.get("name") not in ("", "Novo estudo")):
+    elif has_name or has_area_id:
         out["municipio"] = "in_progress"
     else:
         out["municipio"] = "not_started"
