@@ -451,8 +451,13 @@ def _render_intervention_study(base: dict) -> None:
             base, p, costs, horizon_years)
 
     study = st.session_state.get("intervention_study")
-    if not study:
-        return
+    if study:
+        display_intervention_ranking(study, key_prefix="step8")
+
+
+def display_intervention_ranking(study: dict, key_prefix: str = "r") -> None:
+    """Exibe destaques + tabela do estudo de intervenções (reusável em
+    Cenários e Comparação). `key_prefix` evita colisão de chaves de widget."""
     rows = study["rows"]
     n = study["n"]
     has_costs = study.get("has_costs", False)
@@ -461,9 +466,8 @@ def _render_intervention_study(base: dict) -> None:
         f"({'enumeração completa 2^' + str(n) if study['exhaustive'] else 'amostra: singles+pares+todas'})"
         + (f" · horizonte {study.get('horizon_years')} anos" if has_costs else "") + ".")
 
-    # ----- Ordenação -----
     opts = ["Benefício anual"] + (["Payback (menor)", "IBC (maior)"] if has_costs else [])
-    sort_opt = st.radio("Ordenar por", opts, horizontal=True, key="interv_sort")
+    sort_opt = st.radio("Ordenar por", opts, horizontal=True, key=f"{key_prefix}_interv_sort")
     if sort_opt == "Payback (menor)":
         rows = sorted(rows, key=lambda r: (r["payback_anos"] is None,
                                            r["payback_anos"] if r["payback_anos"] is not None else 1e18))
@@ -472,7 +476,6 @@ def _render_intervention_study(base: dict) -> None:
     else:
         rows = sorted(rows, key=lambda r: r["beneficio_anual"], reverse=True)
 
-    # ----- Destaques -----
     singles = [r for r in rows if r["n_intervencoes"] == 1]
     best_single = max(singles, key=lambda r: r["beneficio_anual"]) if singles else None
     full = max(rows, key=lambda r: r["n_intervencoes"])
@@ -499,7 +502,6 @@ def _render_intervention_study(base: dict) -> None:
         ui_theme.card("🏆 Resolver todas", f"R$ {full['beneficio_anual']:,.0f}/ano")
         st.caption(f"{full['n_intervencoes']} obras → atraso ~0")
 
-    # ----- Tabela -----
     base_cols = ["n_intervencoes", "cruzamentos_melhorados", "atraso_anual",
                  "custo_anual", "beneficio_anual"]
     extra = (["custo_obra", "payback_anos", "ibc"] if has_costs
@@ -538,7 +540,7 @@ def _render_intervention_study(base: dict) -> None:
                    "**IBC** = benefício no horizonte ÷ custo da obra (>1 = vale a pena). "
                    "'—' = sem custo informado ou sem benefício.")
     else:
-        st.caption("Informe o **custo de obra** acima para ranquear por "
+        st.caption("Informe o **custo de obra** (etapa 8) para ranquear por "
                    "**payback** e **IBC** (custo-benefício).")
 
 

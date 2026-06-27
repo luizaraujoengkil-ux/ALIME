@@ -59,6 +59,17 @@ def render() -> None:
     if base is None:
         ui_theme.warning_message("Gere o cenário-base antes (8. Cenários → Cenário-base).")
         return
+
+    # ----- Ranking de intervenções (estudo 2^n da etapa 8) -----
+    study = st.session_state.get("intervention_study")
+    if study:
+        from . import scenarios as sc_scen
+        st.markdown("### 🎲 Ranking de intervenções (todas as combinações)")
+        st.caption("Qual obra — ou combinação — reduz mais o custo social. "
+                   "Gerado na etapa 8; ajuste custos/horizonte lá.")
+        sc_scen.display_intervention_ranking(study, key_prefix="cmp")
+        st.markdown("---")
+
     if not favs:
         ui_theme.info("Salve cenários na <b>Biblioteca</b> para compará-los aqui.")
         if st.button("✓ Confirmar: comparação não será realizada neste estudo",
