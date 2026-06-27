@@ -14,5 +14,6 @@ __app_name__ = "ALIME"
 __app_long_name__ = "Análise Local Integrada de Mobilidade e Engenharia"
 
 __author__ = "Luiz Araujo"
+__coauthor__ = "Wagner de Almeida Tavares"
 __author_email__ = "luiz.junior@ime.eb.br"
 __author_affiliation__ = "IME — Instituto Militar de Engenharia"

@@ -191,26 +191,25 @@ def hero() -> None:
     """Renderiza o bloco hero da tela inicial."""
     from . import (
         __version__, __release_date__,
-        __author__, __author_email__, __author_affiliation__,
+        __author__, __coauthor__, __author_email__, __author_affiliation__,
     )
     st.markdown(
         f"""
         <div class="alime-hero">
             <div class="logo">ALIME</div>
-            <div class="sub">Análise Local Integrada de Mobilidade e Engenharia</div>
             <div class="sub">Simulador de apoio ao planejamento da mobilidade urbana em municípios de pequeno porte.</div>
             <div class="tag">Do diagnóstico territorial à priorização de intervenções.</div>
-            <div style="margin-top:1.4rem;display:flex;justify-content:center;gap:8px;flex-wrap:wrap;">
+            <div style="margin-top:0.9rem;display:flex;justify-content:center;gap:8px;flex-wrap:wrap;">
                 <span class="alime-badge yellow">versão {__version__}</span>
                 <span class="alime-badge blue">{__release_date__}</span>
             </div>
-            <div style="margin-top:1.1rem;color:{PALETTE['text_mute']};font-size:0.85rem;line-height:1.5;">
+            <div style="margin-top:0.7rem;color:{PALETTE['text_mute']};font-size:0.82rem;line-height:1.45;">
                 Desenvolvido por
                 <span style="color:{PALETTE['text']};font-weight:700;">{__author__}</span> ·
+                <span style="color:{PALETTE['text']};font-weight:700;">{__coauthor__}</span><br/>
                 <a href="mailto:{__author_email__}" style="color:{PALETTE['orange']};text-decoration:none;">
                     {__author_email__}
-                </a><br/>
-                <span style="font-size:0.78rem;">{__author_affiliation__}</span>
+                </a> · <span style="font-size:0.76rem;">{__author_affiliation__}</span>
             </div>
         </div>
         """,
