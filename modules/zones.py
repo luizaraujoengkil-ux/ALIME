@@ -267,28 +267,41 @@ def render() -> None:
                     has = (pd.notna(row.get("centroid_lat"))
                            and pd.notna(row.get("centroid_lon")))
                     if not name:
-                        report.append({"zona": row.get("zone_id"), "status": "sem nome"})
+                        status = "sem nome"
                     elif has and not geo_overwrite:
-                        report.append({"zona": name, "status": "mantida (já tinha coords)"})
+                        status = "mantida (já tinha)"
                     else:
                         res = _cached_geocode(geocoding.build_query(name, city, uf), "br")
                         if res:
                             cur.at[idx, "centroid_lat"] = round(res[0], 6)
                             cur.at[idx, "centroid_lon"] = round(res[1], 6)
                             found += 1
-                            report.append({"zona": name, "status": "✓ encontrada",
-                                           "lat": round(res[0], 6), "lon": round(res[1], 6)})
+                            status = "✓ atualizada" if has else "✓ encontrada"
+                        elif has:
+                            # Busca não achou, mas a zona JÁ tinha coordenada: preserva.
+                            status = "○ mantida (busca não achou)"
                         else:
-                            report.append({"zona": name, "status": "✗ não encontrada"})
+                            status = "✗ sem coordenada"
+                    # Sempre reporta a coordenada FINAL (nunca apaga a existente).
+                    flat = cur.at[idx, "centroid_lat"]
+                    flon = cur.at[idx, "centroid_lon"]
+                    report.append({
+                        "zona": name or row.get("zone_id"),
+                        "status": status,
+                        "lat": round(float(flat), 6) if pd.notna(flat) else None,
+                        "lon": round(float(flon), 6) if pd.notna(flon) else None,
+                    })
                     prog.progress((k + 1) / total, text=f"{k + 1}/{total}")
                 prog.empty()
                 # Atualiza SÓ as coordenadas — preserva vetores P/A e balanceamento.
                 st.session_state["zones"] = cur
                 st.session_state["geo_report"] = {
                     "rows": report,
-                    "msg": (f"{found} zona(s) geocodificada(s). Veja na aba Mapa."
+                    "msg": (f"{found} zona(s) atualizada(s) por geocodificação. "
+                            "As demais mantiveram as coordenadas que já tinham."
                             if found else
-                            "Nenhuma zona encontrada. Revise os nomes e o município."),
+                            "Nenhuma coordenada nova encontrada — todas as zonas "
+                            "mantiveram as coordenadas atuais."),
                 }
                 st.rerun()
 

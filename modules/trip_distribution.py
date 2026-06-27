@@ -599,14 +599,16 @@ def render() -> None:
         else:
             ui_theme.card("Erro col vs A", f"{e*100:.2f}%")
 
-    # Heatmap
-    st.markdown("### Heatmap da matriz O-D")
+    # Heatmap (com o número de viagens em cada célula)
+    st.markdown("### Heatmap da matriz O-D (viagens)")
     df_T = pd.DataFrame(T, index=zone_ids, columns=zone_ids)
-    fig = px.imshow(df_T, color_continuous_scale="YlOrRd", aspect="auto")
+    fig = px.imshow(df_T, color_continuous_scale="Oranges", aspect="auto",
+                    text_auto=".0f")
+    fig.update_traces(textfont_size=11)
     fig.update_layout(template="plotly_dark",
                       paper_bgcolor=ui_theme.PALETTE["bg_main"],
                       plot_bgcolor=ui_theme.PALETTE["bg_second"],
-                      height=480)
+                      height=520, coloraxis_colorbar_title="viagens")
     st.plotly_chart(fig, use_container_width=True)
 
     with st.expander("Ver matriz numérica"):
