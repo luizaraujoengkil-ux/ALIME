@@ -162,9 +162,9 @@ def add_zones(m: Any, zones_df: pd.DataFrame) -> Any:
                     icon_size=(0, 0),
                     icon_anchor=(0, 0),
                     html=(
-                        '<div style="font-size:11px;font-weight:700;color:#fff;'
+                        '<div style="font-size:11px;font-weight:700;color:#2E9BFF;'
                         'background:rgba(15,23,38,0.82);padding:1px 5px;'
-                        'border-radius:6px;border:1px solid #F5B700;'
+                        'border-radius:6px;border:1px solid #2E9BFF;'
                         'white-space:nowrap;transform:translate(8px,-8px);">'
                         f'{zid}</div>'
                     ),
