@@ -71,6 +71,25 @@ def distance_matrix(zones_df: pd.DataFrame) -> np.ndarray:
     return D
 
 
+def network_distance_matrix(nd: dict, zone_ids: list, zones_df: pd.DataFrame) -> np.ndarray:
+    """Alinha a matriz de distância da rede real (etapa 6) à ordem atual das
+    zonas. Lacunas (zonas não cobertas) são preenchidas com a distância em
+    linha reta (haversine), garantindo uma matriz completa."""
+    ids = [str(x) for x in zone_ids]
+    M = pd.DataFrame(
+        np.asarray(nd["matrix"], dtype=float),
+        index=[str(x) for x in nd["zone_ids"]],
+        columns=[str(x) for x in nd["zone_ids"]],
+    ).reindex(index=ids, columns=ids)
+    D = np.array(M.to_numpy(dtype=float), copy=True)
+    if np.isnan(D).any():
+        H = distance_matrix(zones_df)
+        mask = np.isnan(D)
+        D[mask] = H[mask]
+    np.fill_diagonal(D, 0.0)
+    return D
+
+
 def impedance_from_distance(
     D: np.ndarray,
     speed_kmh: float = 35.0,
@@ -371,10 +390,23 @@ def render() -> None:
         _impedance_status_block(current_M, zone_ids)
 
         st.markdown("### Fontes")
+        _nd = st.session_state.get("network_distance_km")
+        use_network = st.checkbox(
+            "🛣️ Usar distância pela rede real (OSM) em vez de linha reta",
+            value=bool(_nd),
+            help="Requer ter construído a malha OSM na etapa 6 (Atribuição). "
+                 "Troca a distância haversine pela distância de viário (Dijkstra) "
+                 "ao calcular a impedância. Zonas fora do raio usam linha reta.",
+        )
+        if use_network and _nd is None:
+            ui_theme.info("Malha OSM ainda não construída — construa na etapa 6 "
+                          "para habilitar a distância pela rede. Por ora, linha reta.")
         cc = st.columns(3)
         with cc[0]:
-            use_centroids = st.button("🌍 Calcular dos centroides",
-                                       use_container_width=True)
+            use_centroids = st.button(
+                "🛣️ Calcular pela rede (OSM)" if (use_network and _nd is not None)
+                else "🌍 Calcular dos centroides",
+                use_container_width=True)
         with cc[1]:
             up_imp = st.file_uploader("📥 Importar CSV/Excel",
                                        type=["csv", "xlsx"], key="imp_upload",
@@ -387,7 +419,12 @@ def render() -> None:
         if use_centroids:
             try:
                 params = st.session_state["params"]
-                D = distance_matrix(zones_df)
+                if use_network and _nd is not None:
+                    D = network_distance_matrix(_nd, zone_ids, zones_df)
+                    src = "rede OSM (Dijkstra)"
+                else:
+                    D = distance_matrix(zones_df)
+                    src = "centroides (linha reta)"
                 C = impedance_from_distance(
                     D, speed_kmh=params["default_speed_kmh"],
                     mode="tempo",
@@ -396,10 +433,10 @@ def render() -> None:
                 chk = validate_impedance_matrix(C, zone_ids)
                 if chk["ok"]:
                     st.session_state["impedance"] = C
-                    st.session_state["impedance_source"] = "centroides"
+                    st.session_state["impedance_source"] = src
                     ui_theme.remember_status(
                         "impedance_loaded", "success",
-                        f"Matriz de impedância calculada dos centroides. "
+                        f"Matriz de impedância calculada — fonte: **{src}**. "
                         f"Σ tempos (off-diagonal) = {float(np.tril(C, -1).sum() + np.triu(C, 1).sum()):.0f} min."
                     )
                 else:
