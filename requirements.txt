@@ -12,7 +12,8 @@ geopandas>=0.14
 requests>=2.31
 tabulate>=0.9
 
-# OSMnx é opcional - o ALIME degrada graciosamente sem ele.
-# Descomente apenas se for rodar localmente (não recomendado no Streamlit Cloud,
-# pois exige GDAL/Fiona que aumentam o tempo de build).
-# osmnx>=1.9
+# OSMnx — malha viária real do OpenStreetMap.
+# A partir da 2.x usa geopandas(>=1.0)/pyogrio/shapely, sem GDAL/Fiona
+# obrigatórios, viável no Streamlit Cloud. O ALIME degrada graciosamente
+# (grafo simplificado k-vizinhos) caso a importação falhe.
+osmnx>=2.0
