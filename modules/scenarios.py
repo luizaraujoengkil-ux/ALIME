@@ -12,6 +12,7 @@ Tipos suportados:
 from __future__ import annotations
 
 import copy
+import itertools
 import uuid
 from datetime import datetime
 
@@ -337,6 +338,132 @@ def _render_base_summary(base: dict, ind: dict) -> None:
             "positivo na cidade e na redução do custo social.")
 
 
+def enumerate_interventions(base: dict, params: dict) -> list[dict]:
+    """Gera TODOS os cenários de intervenção possíveis sobre as interferências.
+
+    Cada cenário = um subconjunto de interferências "melhoradas" (ex.: viaduto),
+    cuja contribuição de atraso passa a zero. Como o atraso é aditivo por
+    interferência, enumeramos as 2^n combinações (uma a uma, pares, trios…,
+    todas) de forma exata e instantânea.
+
+    Para n grande (2^n > 4096) cai para singles + pares + todas, para não
+    explodir. Retorna lista de dicts já com benefício vs. cenário-base.
+    """
+    from . import social_cost as sc_mod
+    its = list(base.get("interferences") or [])
+    ind = base.get("assignment", {})
+    total_trips = float(ind.get("total_trips", 0) or 0)
+    n = len(its)
+    names = [it.get("name", f"INT{i+1}") for i, it in enumerate(its)]
+    delays = [interference_delay_min_day(it, total_trips) for it in its]
+    base_daily = float(ind.get("delay_total_min", sum(delays)) or sum(delays))
+    days = float(params.get("operating_days", 252) or 252)
+    base_annual_cost = sc_mod.social_cost({"delay_total_min": base_daily}, params)["annual_cost_brl"]
+
+    # Quais subconjuntos avaliar
+    if n <= 12:
+        subsets = []
+        for r in range(0, n + 1):
+            subsets.extend(itertools.combinations(range(n), r))
+        exhaustive = True
+    else:  # fallback: nenhuma + singles + pares + todas
+        subsets = [()] + [(i,) for i in range(n)]
+        subsets += list(itertools.combinations(range(n), 2))
+        subsets.append(tuple(range(n)))
+        exhaustive = False
+
+    rows = []
+    for combo in subsets:
+        removed = set(combo)
+        residual_daily = sum(d for i, d in enumerate(delays) if i not in removed)
+        annual_cost = sc_mod.social_cost({"delay_total_min": residual_daily}, params)["annual_cost_brl"]
+        benefit = base_annual_cost - annual_cost
+        rows.append({
+            "n_intervencoes": len(combo),
+            "cruzamentos_melhorados": ", ".join(names[i] for i in combo) or "(nenhuma — base)",
+            "atraso_diario": residual_daily,
+            "atraso_anual": residual_daily * days,
+            "custo_anual": annual_cost,
+            "beneficio_anual": benefit,
+            "beneficio_por_intervencao": (benefit / len(combo)) if combo else 0.0,
+        })
+    rows.sort(key=lambda r: r["beneficio_anual"], reverse=True)
+    return {"rows": rows, "exhaustive": exhaustive, "n": n,
+            "base_annual_cost": base_annual_cost}
+
+
+def _render_intervention_study(base: dict) -> None:
+    """Botão + tabela do estudo de TODOS os cenários de intervenção."""
+    its = list(base.get("interferences") or [])
+    st.markdown("#### 🎲 Estudo de intervenções — todos os cenários possíveis")
+    if not its:
+        ui_theme.info("Cadastre interferências (etapa 7) para estudar intervenções.")
+        return
+    st.caption(
+        "Avalia a melhoria de cada interferência **sozinha, em pares, em trios e "
+        "todas juntas** (enumeração completa de 2ⁿ combinações). Cada 'melhoria' "
+        "equivale a eliminar o atraso daquele cruzamento (ex.: construir viaduto). "
+        "O ranking mostra qual obra — ou combinação — traz o maior benefício."
+    )
+    if st.button("🎲 Gerar todos os cenários de intervenção", key="gen_interv_study"):
+        p = base.get("params") or st.session_state.get("params", {}) or {}
+        st.session_state["intervention_study"] = enumerate_interventions(base, p)
+
+    study = st.session_state.get("intervention_study")
+    if not study:
+        return
+    rows = study["rows"]
+    n = study["n"]
+    st.success(
+        f"{len(rows)} cenários avaliados "
+        f"({'enumeração completa 2^' + str(n) if study['exhaustive'] else 'amostra: singles+pares+todas'}).")
+
+    # Destaques
+    singles = [r for r in rows if r["n_intervencoes"] == 1]
+    best_single = max(singles, key=lambda r: r["beneficio_anual"]) if singles else None
+    best_efficiency = max((r for r in rows if r["n_intervencoes"] > 0),
+                          key=lambda r: r["beneficio_por_intervencao"], default=None)
+    full = max(rows, key=lambda r: r["n_intervencoes"])
+
+    cA, cB, cC = st.columns(3)
+    with cA:
+        if best_single:
+            ui_theme.card("🥇 Melhor obra única",
+                          f"{best_single['cruzamentos_melhorados']}")
+            st.caption(f"Benefício R$ {best_single['beneficio_anual']:,.0f}/ano")
+    with cB:
+        if best_efficiency:
+            ui_theme.card("💡 Melhor custo-benefício",
+                          f"R$ {best_efficiency['beneficio_por_intervencao']:,.0f}/obra")
+            st.caption(f"{best_efficiency['cruzamentos_melhorados']}")
+    with cC:
+        ui_theme.card("🏆 Resolver todas",
+                      f"R$ {full['beneficio_anual']:,.0f}/ano")
+        st.caption(f"{full['n_intervencoes']} obras → atraso ~0")
+
+    dfv = pd.DataFrame(rows)[[
+        "n_intervencoes", "cruzamentos_melhorados", "atraso_anual",
+        "custo_anual", "beneficio_anual", "beneficio_por_intervencao",
+    ]].rename(columns={
+        "n_intervencoes": "nº obras",
+        "cruzamentos_melhorados": "cruzamentos melhorados",
+        "atraso_anual": "atraso anual (viagens·min)",
+        "custo_anual": "custo social anual (R$)",
+        "beneficio_anual": "benefício anual (R$)",
+        "beneficio_por_intervencao": "benefício/obra (R$)",
+    })
+    st.markdown("##### Ranking (por benefício anual)")
+    st.dataframe(dfv.style.format({
+        "atraso anual (viagens·min)": "{:,.0f}",
+        "custo social anual (R$)": "R$ {:,.0f}",
+        "benefício anual (R$)": "R$ {:,.0f}",
+        "benefício/obra (R$)": "R$ {:,.0f}",
+    }), use_container_width=True, height=420)
+    st.caption("Sem custo de obra ainda: o ranking usa o **benefício** (redução de "
+               "custo social). Quando você informar o custo de cada viaduto, dá "
+               "para ranquear por payback/IBC.")
+
+
 def render() -> None:
     from . import workflow
     if not workflow.render_guard("cenarios"):
@@ -374,6 +501,8 @@ def render() -> None:
             with cc[3]: ui_theme.card("Atraso (min·pessoa)", f"{ind.get('delay_total_min',0):,.0f}")
 
             _render_base_summary(base, ind)
+            st.markdown("---")
+            _render_intervention_study(base)
 
     # ---- Futuro ----
     with tab_fut:
