@@ -471,9 +471,13 @@ def render() -> None:
     ui_theme.section_title(8, "Cenários")
     ui_theme.disclaimer_box()
 
-    tab_base, tab_fut, tab_int, tab_mel = st.tabs(
-        ["Cenário-base", "Futuro", "Interdição", "Melhoria"]
+    tab_base, tab_fut, tab_int, tab_mel, tab_cost = st.tabs(
+        ["Cenário-base", "Futuro", "Interdição", "Melhoria", "💰 Custo de obra"]
     )
+
+    with tab_cost:
+        from . import obra_cost
+        obra_cost.render_estimator()
 
     # ---- Cenário-base ----
     with tab_base:
