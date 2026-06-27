@@ -230,6 +230,44 @@ def osm_distance_matrix(G: Any, znode: dict[str, int],
     return D
 
 
+def mixed_distance_matrix(G: Any, znode: dict[str, int], zones_df: pd.DataFrame,
+                          zone_ids: list[str], center_lat: float, center_lon: float,
+                          radius_m: float) -> tuple[np.ndarray, list[bool]]:
+    """Distância entre zonas combinando rede real e linha reta.
+
+    - Ambas as zonas DENTRO do raio  → distância pela rede (Dijkstra/extensão).
+    - Alguma zona FORA do raio        → distância em linha reta (haversine),
+      pois a malha baixada não cobre aquele ponto.
+
+    Retorna (D_km, inside), onde inside[i] indica se a zona i está no raio.
+    """
+    n = len(zone_ids)
+    lats = pd.to_numeric(zones_df["centroid_lat"], errors="coerce").to_numpy()
+    lons = pd.to_numeric(zones_df["centroid_lon"], errors="coerce").to_numpy()
+    radius_km = radius_m / 1000.0
+    inside = []
+    for i in range(n):
+        if np.isnan(lats[i]) or np.isnan(lons[i]):
+            inside.append(False)
+        else:
+            d_center = td.haversine_km(center_lat, center_lon, lats[i], lons[i])
+            inside.append(bool(d_center <= radius_km))
+
+    netD = osm_distance_matrix(G, znode, zone_ids)
+    D = np.full((n, n), np.nan)
+    for i in range(n):
+        for j in range(n):
+            if i == j:
+                D[i, j] = 0.0
+                continue
+            if inside[i] and inside[j] and not np.isnan(netD[i, j]):
+                D[i, j] = netD[i, j]                       # rede real (Dijkstra)
+            elif not (np.isnan(lats[i]) or np.isnan(lons[i])
+                      or np.isnan(lats[j]) or np.isnan(lons[j])):
+                D[i, j] = td.haversine_km(lats[i], lons[i], lats[j], lons[j])  # reta
+    return D, inside
+
+
 def assign_on_osm(G: Any, T: np.ndarray, znode: dict[str, int],
                   zone_ids: list[str], speed_kmh: float = 35.0) -> pd.DataFrame:
     """Aloca a matriz O-D nas arestas reais do OSM (all-or-nothing por Dijkstra).
@@ -313,13 +351,15 @@ def render() -> None:
         speed = st.number_input("Velocidade média (km/h)",
                                 value=float(st.session_state["params"]["default_speed_kmh"]),
                                 min_value=5.0, max_value=120.0, step=1.0)
-    k, radius = 3, 3000
+    k, radius_m = 3, 3000
     with cc[2]:
         if use_osm:
-            radius = st.slider("Raio de download (m)", min_value=500, max_value=8000,
-                               value=3000, step=250,
-                               help="Raio em torno do centro das zonas internas. "
-                                    "Maior = mais ruas, porém download mais lento.")
+            radius_km = st.slider("Raio de download (km)", min_value=1.0, max_value=5.0,
+                                  value=3.0, step=0.5,
+                                  help="Área de atuação em torno do centro das zonas "
+                                       "internas. Zonas FORA do raio têm a distância "
+                                       "estimada por linha reta (haversine).")
+            radius_m = int(radius_km * 1000)
         else:
             k = st.number_input("Vizinhos por nó (k)", min_value=1, max_value=10,
                                 value=3, step=1)
@@ -333,7 +373,7 @@ def render() -> None:
     if st.button("🧮 Construir rede e alocar"):
         if use_osm:
             clat, clon = map_utils._center_from_zones(zones_df)
-            G = build_osm_graph(clat, clon, int(radius))
+            G = build_osm_graph(clat, clon, int(radius_m))
             if G is None:
                 ui_theme.warn(
                     "Não foi possível baixar a malha OSM (sem internet ou área "
@@ -341,14 +381,18 @@ def render() -> None:
             else:
                 znode = zone_nodes(G, zones_df)
                 edges_df = assign_on_osm(G, T, znode, zone_ids, speed_kmh=speed)
-                D = osm_distance_matrix(G, znode, zone_ids)
+                D, inside = mixed_distance_matrix(
+                    G, znode, zones_df, zone_ids, clat, clon, int(radius_m))
+                n_out = sum(1 for x in inside if not x)
                 st.session_state["network"] = {
                     "graph": G, "edges": edges_df, "kind": "osm",
-                    "znode": znode, "radius_m": int(radius),
+                    "znode": znode, "radius_m": int(radius_m),
+                    "center": (clat, clon),
                     "n_nodes": G.number_of_nodes(), "n_edges": G.number_of_edges(),
                 }
                 st.session_state["network_distance_km"] = {
-                    "matrix": D, "zone_ids": zone_ids}
+                    "matrix": D, "zone_ids": zone_ids, "inside": inside,
+                    "radius_km": radius_m / 1000.0, "n_out": n_out}
                 ind = compute_indicators(edges_df, T, st.session_state.get("interferences"))
                 st.session_state["assignment"] = ind
                 ui_theme.remember_status(
@@ -380,7 +424,8 @@ def render() -> None:
     if net.get("kind") == "osm":
         ui_theme.info(
             f"Malha real OSM: **{net.get('n_nodes','?')} nós** e "
-            f"**{net.get('n_edges','?')} arestas** (raio {net.get('radius_m','?')} m).")
+            f"**{net.get('n_edges','?')} arestas** "
+            f"(área de atuação: raio {net.get('radius_m',0)/1000:.1f} km).")
 
     c1, c2, c3, c4 = st.columns(4)
     with c1: ui_theme.card("Viagens totais",   f"{ind['total_trips']:,.0f}")
@@ -403,18 +448,31 @@ def render() -> None:
     m = map_utils.base_map(zones_df, tiles=_tiles, attr=_attr)
     if show_net:
         m = map_utils.add_osm_network(m, net["graph"])
+    # Círculo da área de atuação (raio considerado)
+    if net.get("kind") == "osm" and net.get("center"):
+        m = map_utils.add_radius_circle(m, net["center"][0], net["center"][1],
+                                        net.get("radius_m", 0))
     m = map_utils.add_zones(m, zones_df)
     m = map_utils.add_link_loads(m, edges_df, flow_col="flow")
     map_utils.show(m, height=520)
 
     nd = st.session_state.get("network_distance_km")
     if nd is not None and net.get("kind") == "osm":
-        st.markdown("### Distâncias pela rede real (km) — Dijkstra")
-        ddf = pd.DataFrame(nd["matrix"], index=nd["zone_ids"],
-                           columns=nd["zone_ids"]).round(2)
+        st.markdown("### Distâncias entre zonas (km)")
+        n_out = nd.get("n_out", 0)
+        rkm = nd.get("radius_km", 0)
+        if n_out:
+            ui_theme.info(
+                f"Dentro do raio ({rkm:.1f} km): **distância pela rede real** "
+                f"(Dijkstra). Fora do raio ({n_out} zona(s), ex.: externas): "
+                f"**distância em linha reta** (haversine), pois a malha não as cobre.")
+        ids = nd["zone_ids"]
+        inside = nd.get("inside", [True] * len(ids))
+        labels = [f"{z}{'' if ins else ' ⟂'}" for z, ins in zip(ids, inside)]
+        ddf = pd.DataFrame(nd["matrix"], index=labels, columns=labels).round(2)
         st.dataframe(ddf, use_container_width=True)
-        st.caption("Distância de viário real entre centroides. Pode substituir a "
-                   "linha reta no modelo gravitacional (etapa 4) numa próxima versão.")
+        st.caption("⟂ = zona fora do raio (distância estimada por linha reta). "
+                   "Estas distâncias podem alimentar o modelo gravitacional (etapa 4).")
 
     st.markdown("### Trechos mais carregados")
     top = edges_df.sort_values("flow", ascending=False).head(20)

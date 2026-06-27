@@ -273,6 +273,24 @@ def add_osm_network(m: Any, G: Any, color: str = "#7A8699",
     return m
 
 
+def add_radius_circle(m: Any, lat: float, lon: float, radius_m: float,
+                      color: str = "#F5B700") -> Any:
+    """Desenha o círculo da 'área de atuação' (raio de cobertura da malha)."""
+    if not FOLIUM_OK or m is None:
+        return m
+    try:
+        folium.Circle(
+            location=[float(lat), float(lon)],
+            radius=float(radius_m),
+            color=color, weight=2, opacity=0.9,
+            fill=True, fill_opacity=0.05, dash_array="6",
+            tooltip=f"Área de atuação da malha — raio {radius_m/1000:.1f} km",
+        ).add_to(m)
+    except Exception:
+        pass
+    return m
+
+
 def show(m: Any, height: int = 520):
     """Renderiza no Streamlit. Se folium ausente, mostra placeholder."""
     if FOLIUM_OK and m is not None:
