@@ -395,6 +395,7 @@ def enumerate_interventions(base: dict, params: dict,
         rows.append({
             "n_intervencoes": len(combo),
             "cruzamentos_melhorados": ", ".join(names[i] for i in combo) or "(nenhuma — base)",
+            "improved_idx": list(combo),
             "atraso_diario": residual_daily,
             "atraso_anual": residual_daily * days,
             "custo_anual": annual_cost,
@@ -457,6 +458,49 @@ def _render_intervention_study(base: dict) -> None:
     study = st.session_state.get("intervention_study")
     if study:
         display_intervention_ranking(study, key_prefix="step8")
+
+
+def send_interventions_to_library(base: dict, sorted_rows: list, top_n: int) -> int:
+    """Converte os top-N cenários de intervenção em cenários COMPLETOS na
+    Biblioteca (`st.session_state['scenarios']`). 'Melhorar' um cruzamento
+    remove sua interferência (zera o atraso dela); os demais indicadores
+    (veh·km, tempo) são herdados do cenário-base. Retorna quantos foram criados.
+    """
+    its = list(base.get("interferences") or [])
+    edges_df = pd.DataFrame(base.get("edges") or [])
+    base_ind = base.get("assignment", {}) or {}
+    total = float(base_ind.get("total_trips", 0) or 0)
+    cands = [r for r in sorted_rows if r.get("n_intervencoes", 0) > 0][:max(int(top_n), 0)]
+    scen_list = st.session_state.setdefault("scenarios", [])
+    existing = {s.get("name") for s in scen_list}
+    added = 0
+    for r in cands:
+        idx = set(r.get("improved_idx", []))
+        improved_names = [its[i].get("name") for i in idx]
+        if its and len(idx) == len(its):
+            name = f"Melhoria: resolver todas ({len(idx)} obras)"
+        else:
+            name = "Melhoria: " + ", ".join(improved_names)
+        if name in existing:
+            continue
+        sc = copy.deepcopy(base)
+        sc["scenario_id"] = uuid.uuid4().hex[:8]
+        sc["type"] = "melhoria"
+        sc["name"] = name
+        sc["description"] = "Cenário gerado do estudo de intervenções (etapa 8)."
+        sc["interventions"] = improved_names
+        sc["cost_estimate"] = float(r.get("custo_obra", 0.0) or 0.0)
+        sc["created_at"] = datetime.now().isoformat(timespec="seconds")
+        kept = [it for i, it in enumerate(its) if i not in idx]
+        sc["interferences"] = kept
+        ind = copy.deepcopy(base_ind)
+        ind["delay_total_min"] = sum(
+            interference_delay_min_day(it, total, edges_df) for it in kept)
+        sc["assignment"] = ind
+        scen_list.append(sc)
+        existing.add(name)
+        added += 1
+    return added
 
 
 def display_intervention_ranking(study: dict, key_prefix: str = "r") -> None:
@@ -546,6 +590,30 @@ def display_intervention_ranking(study: dict, key_prefix: str = "r") -> None:
     else:
         st.caption("Informe o **custo de obra** (etapa 8) para ranquear por "
                    "**payback** e **IBC** (custo-benefício).")
+
+    # ----- Ponte para a Biblioteca (etapa 9) -----
+    if st.session_state.get("base_scenario"):
+        st.markdown("##### 📚 Enviar para a Biblioteca")
+        n_real = len([r for r in rows if r["n_intervencoes"] > 0])
+        bc1, bc2 = st.columns([1, 2])
+        with bc1:
+            top_n = st.number_input("Quantos (top N pela ordenação)", 1,
+                                    max(1, n_real), min(3, max(1, n_real)),
+                                    key=f"{key_prefix}_topn")
+        with bc2:
+            st.caption("Transforma os melhores cenários (pela ordenação atual) em "
+                       "**cenários completos** — disponíveis na **etapa 9 (Biblioteca)** "
+                       "e na Comparação detalhada, com o custo de obra junto.")
+        if st.button("📚 Enviar os melhores para a Biblioteca",
+                     key=f"{key_prefix}_send_lib"):
+            added = send_interventions_to_library(
+                st.session_state["base_scenario"], rows, int(top_n))
+            if added:
+                ui_theme.ok(f"{added} cenário(s) enviados à Biblioteca. "
+                            "Vá à **etapa 9** para salvá-los como favoritos e "
+                            "compará-los na etapa 10.")
+            else:
+                ui_theme.info("Nada novo a enviar (já estavam na Biblioteca).")
 
 
 def render() -> None:
