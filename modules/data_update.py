@@ -41,6 +41,51 @@ def write_metadata(extra: dict | None = None) -> None:
     METADATA_PATH.write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
+def _demo_interferences() -> list[dict]:
+    """Interferências ferroviárias do estudo Matias Barbosa (linha MRS).
+
+    4 cruzamentos rodovia–ferrovia (coordenadas Google Earth). Parâmetros
+    operacionais com valores-padrão editáveis na etapa 7.
+    """
+    import uuid
+    from .interferences import compute_rail
+    pts = [
+        ("Passagem de nível 01",           -21.872428, -43.321183),
+        ("Passagem de nível 02",           -21.867511, -43.318361),
+        ("Interseção rodovia-ferrovia 01", -21.864783, -43.316367),
+        ("Interseção rodovia-ferrovia 02", -21.855644, -43.308803),
+    ]
+    speed, length, factor, queue, trains = 30.0, 1.2, 1.3, 4.0, 20
+    rail = compute_rail(length, speed, factor, queue)
+    out = []
+    for name, lat, lon in pts:
+        out.append({
+            "interference_id": uuid.uuid4().hex[:8],
+            "name": name,
+            "type": "passagem em nível ferroviária",
+            "geometry_type": "point",
+            "affected_modes": ["veiculo_leve", "veiculo_pesado", "transporte_coletivo"],
+            "affected_zones": [],
+            "affected_edges": [],
+            "blocks_per_day": trains,
+            "average_blockage_min": round(rail["block_min"], 2),
+            "queue_dissipation_min": queue,
+            "capacity_reduction_percent": 0.0,
+            "risk_level": "alto",
+            "periodicity": "recorrente",
+            "lat": lat, "lon": lon,
+            "train_speed_kmh": speed,
+            "train_length_km": length,
+            "operational_factor": factor,
+            "trains_per_day": trains,
+            "computed_block_min": round(rail["block_min"], 2),
+            "computed_total_interference_min": round(rail["total_min"], 2),
+            "affected_share": 0.15,
+            "notes": "Cruzamento rodovia–ferrovia (linha MRS). Coord. Google Earth.",
+        })
+    return out
+
+
 def load_example() -> None:
     """Carrega o estudo de DEMONSTRAÇÃO (Matias Barbosa/MG).
 
@@ -69,7 +114,7 @@ def load_example() -> None:
     st.session_state["scenarios"] = []
     st.session_state["network"] = None
     st.session_state["assignment"] = None
-    st.session_state["interferences"] = []
+    st.session_state["interferences"] = _demo_interferences()
 
     # Estudo de demonstração — Matias Barbosa/MG (dados reais de referência)
     st.session_state["study"] = {
