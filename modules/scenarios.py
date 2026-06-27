@@ -338,16 +338,22 @@ def _render_base_summary(base: dict, ind: dict) -> None:
             "positivo na cidade e na redução do custo social.")
 
 
-def enumerate_interventions(base: dict, params: dict) -> list[dict]:
+def enumerate_interventions(base: dict, params: dict,
+                            costs: dict | None = None,
+                            horizon_years: int = 10) -> dict:
     """Gera TODOS os cenários de intervenção possíveis sobre as interferências.
 
     Cada cenário = um subconjunto de interferências "melhoradas" (ex.: viaduto),
     cuja contribuição de atraso passa a zero. Como o atraso é aditivo por
     interferência, enumeramos as 2^n combinações (uma a uma, pares, trios…,
-    todas) de forma exata e instantânea.
+    todas) de forma exata e instantânea. Para n grande (2^n > 4096) cai para
+    singles + pares + todas.
 
-    Para n grande (2^n > 4096) cai para singles + pares + todas, para não
-    explodir. Retorna lista de dicts já com benefício vs. cenário-base.
+    Se `costs` (custo de obra por nome de interferência) for informado, calcula
+    também:
+        custo_obra  = Σ custos das interferências melhoradas
+        payback     = custo_obra / benefício_anual          (anos)
+        IBC         = (benefício_anual · horizonte) / custo_obra
     """
     from . import social_cost as sc_mod
     its = list(base.get("interferences") or [])
@@ -359,8 +365,9 @@ def enumerate_interventions(base: dict, params: dict) -> list[dict]:
     base_daily = float(ind.get("delay_total_min", sum(delays)) or sum(delays))
     days = float(params.get("operating_days", 252) or 252)
     base_annual_cost = sc_mod.social_cost({"delay_total_min": base_daily}, params)["annual_cost_brl"]
+    costs = costs or {}
+    horizon_years = max(int(horizon_years or 10), 1)
 
-    # Quais subconjuntos avaliar
     if n <= 12:
         subsets = []
         for r in range(0, n + 1):
@@ -378,6 +385,9 @@ def enumerate_interventions(base: dict, params: dict) -> list[dict]:
         residual_daily = sum(d for i, d in enumerate(delays) if i not in removed)
         annual_cost = sc_mod.social_cost({"delay_total_min": residual_daily}, params)["annual_cost_brl"]
         benefit = base_annual_cost - annual_cost
+        obra = sum(float(costs.get(names[i], 0.0) or 0.0) for i in combo)
+        payback = (obra / benefit) if (benefit > 0 and obra > 0) else None
+        ibc = ((benefit * horizon_years) / obra) if obra > 0 else None
         rows.append({
             "n_intervencoes": len(combo),
             "cruzamentos_melhorados": ", ".join(names[i] for i in combo) or "(nenhuma — base)",
@@ -386,10 +396,15 @@ def enumerate_interventions(base: dict, params: dict) -> list[dict]:
             "custo_anual": annual_cost,
             "beneficio_anual": benefit,
             "beneficio_por_intervencao": (benefit / len(combo)) if combo else 0.0,
+            "custo_obra": obra,
+            "payback_anos": payback,
+            "ibc": ibc,
         })
     rows.sort(key=lambda r: r["beneficio_anual"], reverse=True)
+    has_costs = any(float(c or 0) > 0 for c in costs.values())
     return {"rows": rows, "exhaustive": exhaustive, "n": n,
-            "base_annual_cost": base_annual_cost}
+            "base_annual_cost": base_annual_cost,
+            "horizon_years": horizon_years, "has_costs": has_costs}
 
 
 def _render_intervention_study(base: dict) -> None:
@@ -405,63 +420,126 @@ def _render_intervention_study(base: dict) -> None:
         "equivale a eliminar o atraso daquele cruzamento (ex.: construir viaduto). "
         "O ranking mostra qual obra — ou combinação — traz o maior benefício."
     )
+    # ----- Custo de obra por interferência (opcional → custo-benefício) -----
+    st.markdown("##### Custo de obra por interferência (opcional)")
+    last = st.session_state.get("last_obra_cost")
+    if last:
+        st.caption(f"💡 Última estimativa (aba **Custo de obra**): {last['type']} — "
+                   f"**R$ {last['cost_brl']:,.0f}** ({last['area_m2']:,.0f} m²). "
+                   "Digite-a na interferência desejada abaixo.")
+    saved = st.session_state.get("obra_costs", {}) or {}
+    cost_df = pd.DataFrame({
+        "interferência": [it.get("name") for it in its],
+        "custo_obra_R$": [float(saved.get(it.get("name"), 0.0)) for it in its],
+    })
+    edited = st.data_editor(
+        cost_df, key="obra_cost_editor", use_container_width=True, hide_index=True,
+        disabled=["interferência"],
+        column_config={"custo_obra_R$": st.column_config.NumberColumn(
+            "custo da obra (R$)", min_value=0.0, step=100000.0, format="%.0f")},
+    )
+    costs = {r["interferência"]: float(r["custo_obra_R$"] or 0.0)
+             for _, r in edited.iterrows()}
+    st.session_state["obra_costs"] = costs
+
+    sd = st.session_state.get("study", {}) or {}
+    horizon_years = max(int(sd.get("horizon", 0) or 0) - int(sd.get("base_year", 0) or 0), 1)
+
     if st.button("🎲 Gerar todos os cenários de intervenção", key="gen_interv_study"):
         p = base.get("params") or st.session_state.get("params", {}) or {}
-        st.session_state["intervention_study"] = enumerate_interventions(base, p)
+        st.session_state["intervention_study"] = enumerate_interventions(
+            base, p, costs, horizon_years)
 
     study = st.session_state.get("intervention_study")
     if not study:
         return
     rows = study["rows"]
     n = study["n"]
+    has_costs = study.get("has_costs", False)
     st.success(
         f"{len(rows)} cenários avaliados "
-        f"({'enumeração completa 2^' + str(n) if study['exhaustive'] else 'amostra: singles+pares+todas'}).")
+        f"({'enumeração completa 2^' + str(n) if study['exhaustive'] else 'amostra: singles+pares+todas'})"
+        + (f" · horizonte {study.get('horizon_years')} anos" if has_costs else "") + ".")
 
-    # Destaques
+    # ----- Ordenação -----
+    opts = ["Benefício anual"] + (["Payback (menor)", "IBC (maior)"] if has_costs else [])
+    sort_opt = st.radio("Ordenar por", opts, horizontal=True, key="interv_sort")
+    if sort_opt == "Payback (menor)":
+        rows = sorted(rows, key=lambda r: (r["payback_anos"] is None,
+                                           r["payback_anos"] if r["payback_anos"] is not None else 1e18))
+    elif sort_opt == "IBC (maior)":
+        rows = sorted(rows, key=lambda r: (r["ibc"] is None, -(r["ibc"] or 0)))
+    else:
+        rows = sorted(rows, key=lambda r: r["beneficio_anual"], reverse=True)
+
+    # ----- Destaques -----
     singles = [r for r in rows if r["n_intervencoes"] == 1]
     best_single = max(singles, key=lambda r: r["beneficio_anual"]) if singles else None
-    best_efficiency = max((r for r in rows if r["n_intervencoes"] > 0),
-                          key=lambda r: r["beneficio_por_intervencao"], default=None)
     full = max(rows, key=lambda r: r["n_intervencoes"])
-
     cA, cB, cC = st.columns(3)
     with cA:
         if best_single:
-            ui_theme.card("🥇 Melhor obra única",
-                          f"{best_single['cruzamentos_melhorados']}")
+            ui_theme.card("🥇 Melhor obra única", f"{best_single['cruzamentos_melhorados']}")
             st.caption(f"Benefício R$ {best_single['beneficio_anual']:,.0f}/ano")
     with cB:
-        if best_efficiency:
-            ui_theme.card("💡 Melhor custo-benefício",
-                          f"R$ {best_efficiency['beneficio_por_intervencao']:,.0f}/obra")
-            st.caption(f"{best_efficiency['cruzamentos_melhorados']}")
+        if has_costs:
+            pbs = [r for r in rows if r["payback_anos"] is not None]
+            best_pb = min(pbs, key=lambda r: r["payback_anos"]) if pbs else None
+            if best_pb:
+                ui_theme.card("⏱️ Menor payback", f"{best_pb['payback_anos']:.1f} anos")
+                st.caption(f"{best_pb['cruzamentos_melhorados']}")
+        else:
+            eff = max((r for r in rows if r["n_intervencoes"] > 0),
+                      key=lambda r: r["beneficio_por_intervencao"], default=None)
+            if eff:
+                ui_theme.card("💡 Melhor benefício/obra",
+                              f"R$ {eff['beneficio_por_intervencao']:,.0f}")
+                st.caption(f"{eff['cruzamentos_melhorados']}")
     with cC:
-        ui_theme.card("🏆 Resolver todas",
-                      f"R$ {full['beneficio_anual']:,.0f}/ano")
+        ui_theme.card("🏆 Resolver todas", f"R$ {full['beneficio_anual']:,.0f}/ano")
         st.caption(f"{full['n_intervencoes']} obras → atraso ~0")
 
-    dfv = pd.DataFrame(rows)[[
-        "n_intervencoes", "cruzamentos_melhorados", "atraso_anual",
-        "custo_anual", "beneficio_anual", "beneficio_por_intervencao",
-    ]].rename(columns={
+    # ----- Tabela -----
+    base_cols = ["n_intervencoes", "cruzamentos_melhorados", "atraso_anual",
+                 "custo_anual", "beneficio_anual"]
+    extra = (["custo_obra", "payback_anos", "ibc"] if has_costs
+             else ["beneficio_por_intervencao"])
+    ren = {
         "n_intervencoes": "nº obras",
         "cruzamentos_melhorados": "cruzamentos melhorados",
         "atraso_anual": "atraso anual (viagens·min)",
         "custo_anual": "custo social anual (R$)",
         "beneficio_anual": "benefício anual (R$)",
         "beneficio_por_intervencao": "benefício/obra (R$)",
-    })
-    st.markdown("##### Ranking (por benefício anual)")
-    st.dataframe(dfv.style.format({
-        "atraso anual (viagens·min)": "{:,.0f}",
-        "custo social anual (R$)": "R$ {:,.0f}",
-        "benefício anual (R$)": "R$ {:,.0f}",
-        "benefício/obra (R$)": "R$ {:,.0f}",
-    }), use_container_width=True, height=420)
-    st.caption("Sem custo de obra ainda: o ranking usa o **benefício** (redução de "
-               "custo social). Quando você informar o custo de cada viaduto, dá "
-               "para ranquear por payback/IBC.")
+        "custo_obra": "custo de obra (R$)",
+        "payback_anos": "payback (anos)",
+        "ibc": "IBC",
+    }
+    dfv = pd.DataFrame(rows)[base_cols + extra].rename(columns=ren)
+
+    def _money(v): return "—" if pd.isna(v) else f"R$ {v:,.0f}"
+    def _num(v): return "—" if pd.isna(v) else f"{v:,.0f}"
+    def _pb(v): return "—" if pd.isna(v) else f"{v:.1f}"
+    def _ibc(v): return "—" if pd.isna(v) else f"{v:.2f}"
+    fmt = {
+        "atraso anual (viagens·min)": _num,
+        "custo social anual (R$)": _money,
+        "benefício anual (R$)": _money,
+    }
+    if has_costs:
+        fmt.update({"custo de obra (R$)": _money, "payback (anos)": _pb, "IBC": _ibc})
+    else:
+        fmt["benefício/obra (R$)"] = _money
+
+    st.markdown(f"##### Ranking — ordenado por {sort_opt}")
+    st.dataframe(dfv.style.format(fmt), use_container_width=True, height=420)
+    if has_costs:
+        st.caption("**Payback** = custo da obra ÷ benefício anual (anos até se pagar). "
+                   "**IBC** = benefício no horizonte ÷ custo da obra (>1 = vale a pena). "
+                   "'—' = sem custo informado ou sem benefício.")
+    else:
+        st.caption("Informe o **custo de obra** acima para ranquear por "
+                   "**payback** e **IBC** (custo-benefício).")
 
 
 def render() -> None:
