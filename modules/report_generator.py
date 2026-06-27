@@ -103,10 +103,10 @@ def build_markdown(scope: str, study: dict, params: dict,
                 cost = sc_mod.social_cost(ind, params)
                 rows.append({
                     "cenário": sc.get("name"),
-                    "tempo médio (min)": round(ind.get("avg_time_min", 0), 2),
-                    "atraso (min·pessoa)": round(ind.get("delay_total_min", 0), 0),
-                    "custo anual (R$)": round(cost["annual_cost_brl"], 0),
-                    "custo obra (R$)": round(sc.get("cost_estimate", 0), 0),
+                    "tempo médio (min)": ui_theme.num_br(ind.get("avg_time_min", 0), 2),
+                    "atraso (min·pessoa)": ui_theme.num_br(ind.get("delay_total_min", 0)),
+                    "custo anual (R$)": ui_theme.brl(cost["annual_cost_brl"]),
+                    "custo obra (R$)": ui_theme.brl(sc.get("cost_estimate", 0)),
                 })
             df = pd.DataFrame(rows)
             out.append("\n### Tabela consolidada\n")
