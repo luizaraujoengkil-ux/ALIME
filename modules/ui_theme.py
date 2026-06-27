@@ -57,6 +57,21 @@ def inject_css() -> None:
         st.markdown(f"<style>{css}</style>", unsafe_allow_html=True)
 
 
+def num_br(v, dec: int = 0) -> str:
+    """Formata número no padrão brasileiro: 1.234.567,89 (ponto=milhar, vírgula=decimal)."""
+    try:
+        s = f"{float(v):,.{dec}f}"
+    except (TypeError, ValueError):
+        return str(v)
+    # troca separadores US (1,234.56) -> BR (1.234,56)
+    return s.replace(",", "X").replace(".", ",").replace("X", ".")
+
+
+def brl(v, dec: int = 0) -> str:
+    """Valor monetário no padrão brasileiro: R$ 26.100.000."""
+    return "R$ " + num_br(v, dec)
+
+
 def card(label: str, value: str, delta: str | None = None, color: str = "yellow") -> None:
     """Renderiza um card de indicador.
 

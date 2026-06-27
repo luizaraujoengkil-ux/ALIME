@@ -15,10 +15,12 @@ DNIT_LANE_WIDTH = 3.60   # m — largura de faixa de tráfego (rodovia DNIT)
 BARRIER_WIDTH = 0.40     # m por lado — guarda-corpo / defensa (New Jersey)
 
 # Preset por tipo de obra: custo/m² (R$), largura de faixa, acostamento/lado.
+# Acostamento default URBANO (0,6 m) — em via urbana o viaduto não leva o
+# acostamento rodoviário de 2,5 m. Para rodovia, aumente esse campo na tela.
 STRUCTURE_PRESETS = {
-    "Viaduto":                       {"cost_m2": 18000.0, "lane": 3.60, "shoulder": 2.50, "pedestrian": False},
-    "Ponte":                         {"cost_m2": 20000.0, "lane": 3.60, "shoulder": 2.50, "pedestrian": False},
-    "Mergulhão (passagem inferior)": {"cost_m2": 16000.0, "lane": 3.60, "shoulder": 1.50, "pedestrian": False},
+    "Viaduto":                       {"cost_m2": 18000.0, "lane": 3.60, "shoulder": 0.60, "pedestrian": False},
+    "Ponte":                         {"cost_m2": 20000.0, "lane": 3.60, "shoulder": 0.60, "pedestrian": False},
+    "Mergulhão (passagem inferior)": {"cost_m2": 16000.0, "lane": 3.60, "shoulder": 0.60, "pedestrian": False},
     "Passarela (pedestres)":         {"cost_m2": 12000.0, "lane": 0.00, "shoulder": 0.00, "pedestrian": True},
 }
 
@@ -121,16 +123,20 @@ def render_estimator() -> None:
         with p3: la2 = st.number_input("Lat fim", value=-21.871500, format="%.6f")
         with p4: lo2 = st.number_input("Lon fim", value=-43.320900, format="%.6f")
         length = haversine_m(la1, lo1, la2, lo2)
-        st.caption(f"Comprimento entre os pontos ≈ **{length:,.0f} m** "
+        st.caption(f"Comprimento entre os pontos ≈ **{ui_theme.num_br(length)} m** "
                    "(linha reta/haversine).")
 
     # --------- Resultado ---------
     est = estimate(width, length, cost_m2)
     st.markdown("##### Resultado")
     r = st.columns(3)
-    with r[0]: ui_theme.card("Área", f"{est['area_m2']:,.0f} m²")
-    with r[1]: ui_theme.card("Custo por m²", f"R$ {cost_m2:,.0f}")
-    with r[2]: ui_theme.card("Custo total estimado", f"R$ {est['cost_brl']:,.0f}")
+    with r[0]: ui_theme.card("Área", f"{ui_theme.num_br(est['area_m2'])} m²")
+    with r[1]: ui_theme.card("Custo por m²", ui_theme.brl(cost_m2))
+    with r[2]: ui_theme.card("Custo total estimado", ui_theme.brl(est['cost_brl']))
+    st.caption(f"Conta: {ui_theme.num_br(est['area_m2'])} m² × "
+               f"{ui_theme.brl(cost_m2)}/m² = **{ui_theme.brl(est['cost_brl'])}**  "
+               f"(largura {ui_theme.num_br(width, 2)} m × comprimento "
+               f"{ui_theme.num_br(length)} m).")
 
     st.session_state["last_obra_cost"] = {
         "type": stype, "width_m": width, "length_m": length,
