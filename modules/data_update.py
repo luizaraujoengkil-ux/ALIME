@@ -109,8 +109,8 @@ def _ensure_example_files() -> None:
         # id, nome, tipo, pop, jobs, schools, prod, attr, lat, lon, notes
         ["ZT01", "Centro e Rodoviária", "centro/núcleo urbano", 3850, 1600, 1300, 1615, 2900, -21.873922, -43.321128, "interna; coord Google Earth (Rodoviária)"],
         ["ZT02", "Monte Alegre", "residencial", 3120, 250, 450, 1310, 700, -21.877879, -43.311365, "interna; coord OSM (Park Monte Alegre)"],
-        ["ZT03", "N. Sra. da Penha e MG-874", "residencial", 2650, 250, 350, 1107, 600, -21.872000, -43.305000, "interna; coord aproximada (eixo MG-874)"],
-        ["ZT04", "Cedofeita e Expansão", "industrial/logístico", 2100, 850, 200, 881, 1050, -21.868000, -43.340000, "interna; coord aproximada (eixo BR-040)"],
+        ["ZT03", "N. Sra. da Penha e MG-874", "residencial", 2650, 250, 350, 1107, 600, -21.860000, -43.313000, "interna; aproximada no eixo LMG-874"],
+        ["ZT04", "Cedofeita e Expansão", "industrial/logístico", 2100, 850, 200, 881, 1050, -21.840890, -43.313800, "interna; coord OSM (bairro Cedofeitas)"],
         ["ZT05", "Área Rural e Distrito", "rural/periurbano", 2401, 150, 150, 1038, 300, -21.854067, -43.325233, "interna; coord Google Earth (Área Rural/Distrito)"],
         ["ZTE01", "Juiz de Fora/MG", "externo", 0, 2100, 950, 3050, 3050, -21.7610, -43.3501, "externa; absorção via BR-040 Norte e MG-874"],
         ["ZTE02", "Simão Pereira/MG", "externo", 0, 85, 10, 95, 95, -21.9644, -43.3127, "externa; absorção via BR-040 Sul"],
