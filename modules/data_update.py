@@ -1,10 +1,10 @@
-"""Atualização de dados, metadata e carregamento opcional de exemplo genérico.
+"""Atualização de dados, metadata e carregamento do estudo de demonstração.
 
-Por padrão, o ALIME inicia VAZIO. O exemplo genérico (6 zonas com
-nomes "Zona A"...) é estritamente OPCIONAL e existe apenas para
-validação rápida do motor matemático. Os atributos são fictícios; as
-coordenadas ficam ancoradas sobre Brasília apenas para que o mapa
-mostre uma cidade real ao fundo. Não é um estudo real de Brasília.
+Por padrão, o ALIME inicia VAZIO. O estudo de demonstração é OPCIONAL e
+serve para validar o fluxo completo com dados reais de referência:
+**Matias Barbosa/MG** (5 zonas internas ZT01..ZT05 + 4 zonas externas
+ZTE01..ZTE04, vetores de produção/atração derivados de Censo 2022 e do
+estudo de caso). As coordenadas internas são aproximadas (ajustáveis).
 """
 from __future__ import annotations
 
@@ -21,8 +21,8 @@ from . import ui_theme
 EXAMPLES_DIR = Path(__file__).resolve().parent.parent / "data" / "examples"
 METADATA_PATH = Path(__file__).resolve().parent.parent / "data" / "metadata.json"
 
-# Nome do arquivo do exemplo genérico
-EXAMPLE_FILENAME = "zonas_exemplo_generico.csv"
+# Nome do arquivo do estudo de demonstração
+EXAMPLE_FILENAME = "zonas_matias_barbosa.csv"
 
 
 def write_metadata(extra: dict | None = None) -> None:
@@ -42,10 +42,10 @@ def write_metadata(extra: dict | None = None) -> None:
 
 
 def load_example() -> None:
-    """Carrega um EXEMPLO GENÉRICO de estudo, apenas para validação.
+    """Carrega o estudo de DEMONSTRAÇÃO (Matias Barbosa/MG).
 
-    Atributos fictícios (nomes "Zona A"..); coordenadas ancoradas sobre
-    Brasília só para o mapa exibir uma cidade real. Não é estudo de Brasília.
+    9 zonas (5 internas + 4 externas) com vetores de produção/atração de
+    referência. Coordenadas internas aproximadas — ajustáveis na etapa Zonas.
     """
     from . import zones as zones_mod
     zones_path = EXAMPLES_DIR / EXAMPLE_FILENAME
@@ -71,19 +71,19 @@ def load_example() -> None:
     st.session_state["assignment"] = None
     st.session_state["interferences"] = []
 
-    # Estudo genérico — atributos fictícios, ancorado em Brasília só para o mapa
+    # Estudo de demonstração — Matias Barbosa/MG (dados reais de referência)
     st.session_state["study"] = {
-        "name": "Exemplo genérico",
-        "area_name": "Área de Estudo (exemplo)",
-        "entry_type": "ponto",
-        "center_lat": -15.793,
-        "center_lon": -47.882,
+        "name": "Demonstração — Matias Barbosa/MG",
+        "area_name": "Matias Barbosa",
+        "entry_type": "municipio",
+        "center_lat": -21.8650,
+        "center_lon": -43.3160,
         "collection_radius_km": 5.0,
         "analysis_radius_km": 3.0,
-        "municipality": "",      # campo livre, mantido por compat
-        "uf": "",
-        "country": "",
-        "population": 12000,
+        "municipality": "Matias Barbosa",
+        "uf": "MG",
+        "country": "BR",
+        "population": 14121,     # residentes internos (Censo 2022)
         "base_year": 2026,
         "horizon": 2036,
         "problem_type": "outro",
@@ -99,27 +99,30 @@ def load_demo() -> None:
 
 
 def _ensure_example_files() -> None:
-    """Garante que o CSV de exemplo genérico exista.
+    """Fallback: garante que o CSV de demonstração (Matias Barbosa/MG) exista.
 
-    Os atributos (população, produção, atração) são fictícios; as coordenadas
-    ficam ancoradas sobre Brasília APENAS para que o mapa mostre uma cidade
-    real ao fundo. Não é um estudo real de Brasília.
+    5 zonas internas (ZT) + 4 externas (ZTE). Atração = empregos + matrículas.
+    Coordenadas internas aproximadas; externas nos centros reais das cidades.
     """
     EXAMPLES_DIR.mkdir(parents=True, exist_ok=True)
     example = pd.DataFrame([
-        ["ZA", "Zona A", "centro/núcleo urbano",  3000, 900, 1200, -15.783, -47.882],
-        ["ZB", "Zona B", "residencial",           2500, 800,  300, -15.773, -47.882],
-        ["ZC", "Zona C", "residencial",           2200, 700,  250, -15.793, -47.872],
-        ["ZD", "Zona D", "industrial/logístico",   800, 250,  800, -15.793, -47.892],
-        ["ZE", "Zona E", "comercial/serviços",    1500, 500,  650, -15.803, -47.882],
-        ["ZF", "Zona F", "externo",               2000, 600,  400, -15.813, -47.877],
+        # id, nome, tipo, pop, jobs, schools, prod, attr, lat, lon, notes
+        ["ZT01", "Centro e Rodoviária", "centro/núcleo urbano", 3850, 1600, 1300, 1615, 2900, -21.8625, -43.3140, "interna; principal polo atrator; coord aproximada"],
+        ["ZT02", "Monte Alegre", "residencial", 3120, 250, 450, 1310, 700, -21.8580, -43.3185, "interna; predominância residencial; coord aproximada"],
+        ["ZT03", "N. Sra. da Penha e MG-874", "residencial", 2650, 250, 350, 1107, 600, -21.8690, -43.3070, "interna; eixo MG-874; coord aproximada"],
+        ["ZT04", "Cedofeita e Expansão", "industrial/logístico", 2100, 850, 200, 881, 1050, -21.8560, -43.3060, "interna; polo industrial/logístico BR-040; coord aproximada"],
+        ["ZT05", "Área Rural e Distrito", "rural/periurbano", 2401, 150, 150, 1038, 300, -21.8780, -43.3320, "interna; baixa densidade; coord aproximada"],
+        ["ZTE01", "Juiz de Fora/MG", "externo", 0, 2100, 950, 3050, 3050, -21.7610, -43.3501, "externa; absorção via BR-040 Norte e MG-874"],
+        ["ZTE02", "Simão Pereira/MG", "externo", 0, 85, 10, 95, 95, -21.9644, -43.3127, "externa; absorção via BR-040 Sul"],
+        ["ZTE03", "Três Rios/RJ", "externo", 0, 45, 5, 50, 50, -22.1202, -43.1072, "externa; absorção via BR-040 Sul"],
+        ["ZTE04", "Rio de Janeiro/RJ", "externo", 0, 30, 0, 30, 30, -22.9110, -43.2094, "externa; absorção via BR-040 Sul"],
     ], columns=[
         "zone_id", "zone_name", "zone_type",
-        "population", "production", "attraction",
-        "centroid_lat", "centroid_lon",
+        "population", "jobs", "schools",
+        "production", "attraction",
+        "centroid_lat", "centroid_lon", "notes",
     ])
-    for c in ["jobs", "schools", "commerce", "industry",
-              "generation_weight", "attraction_weight", "notes"]:
+    for c in ["commerce", "industry", "generation_weight", "attraction_weight"]:
         example[c] = ""
     example = example[[
         "zone_id", "zone_name", "zone_type",
@@ -149,12 +152,12 @@ def render() -> None:
 
     cc = st.columns(3)
     with cc[0]:
-        if st.button("🧪 Carregar exemplo genérico (validação)",
+        if st.button("🧪 Carregar estudo de demonstração",
                       use_container_width=True,
-                      help="Carrega 6 zonas sintéticas para validar o motor. "
-                           "Os dados NÃO representam nenhuma cidade real."):
+                      help="Carrega o estudo Matias Barbosa/MG (9 zonas, dados "
+                           "reais de referência) para validar o fluxo completo."):
             load_example()
-            ui_theme.ok("Exemplo genérico carregado. Use apenas para validação do motor.")
+            ui_theme.ok("Estudo de demonstração (Matias Barbosa/MG) carregado.")
     with cc[1]:
         if st.button("💾 Gravar metadata.json", use_container_width=True):
             write_metadata()

@@ -293,8 +293,8 @@ def render_home() -> None:
     st.markdown(
         f"<div style='text-align:center;color:{p['text_mute']};"
         f"font-size:0.74rem;margin-top:0.4rem'>"
-        f"O exemplo genérico contém 6 zonas sintéticas (Zona A..F) e "
-        f"<b>não representa nenhuma cidade real</b>."
+        f"O estudo de demonstração carrega <b>Matias Barbosa/MG</b> "
+        f"(5 zonas internas + 4 externas) para validar o fluxo completo."
         f"</div>",
         unsafe_allow_html=True,
     )

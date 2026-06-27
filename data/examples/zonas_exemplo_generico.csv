@@ -1,7 +1,0 @@
-zone_id,zone_name,zone_type,population,jobs,schools,commerce,industry,production,attraction,generation_weight,attraction_weight,centroid_lat,centroid_lon,notes
-ZA,Zona A,centro/núcleo urbano,3000,,,,,900,1200,,,-15.783000,-47.882000,Exemplo ilustrativo (ancorado em Brasília) — centro
-ZB,Zona B,residencial,2500,,,,,800,300,,,-15.773000,-47.882000,Exemplo ilustrativo (ancorado em Brasília) — residencial
-ZC,Zona C,residencial,2200,,,,,700,250,,,-15.793000,-47.872000,Exemplo ilustrativo (ancorado em Brasília) — residencial
-ZD,Zona D,industrial/logístico,800,,,,,250,800,,,-15.793000,-47.892000,Exemplo ilustrativo (ancorado em Brasília) — industrial
-ZE,Zona E,comercial/serviços,1500,,,,,500,650,,,-15.803000,-47.882000,Exemplo ilustrativo (ancorado em Brasília) — comercial
-ZF,Zona F,externo,2000,,,,,600,400,,,-15.813000,-47.877000,Exemplo ilustrativo (ancorado em Brasília) — externo
