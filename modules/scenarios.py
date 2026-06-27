@@ -285,6 +285,58 @@ def run_improvement_scenario(name: str, improvements: list[dict],
 # ============================================================
 # UI
 # ============================================================
+def interference_delay_min_day(it: dict, total_trips: float) -> float:
+    """Atraso diário (viagens·min) atribuível a UMA interferência.
+
+    Mesma fórmula agregada de network_assignment.compute_indicators:
+        atraso = bloqueios/dia · (bloqueio + fila) · viagens_afetadas
+    onde viagens_afetadas = total_trips · fração_afetada.
+    """
+    blocks = float(it.get("blocks_per_day", 0) or 0)
+    tblock = float(it.get("average_blockage_min", 0) or 0)
+    tqueue = float(it.get("queue_dissipation_min", 0) or 0)
+    share = float(it.get("affected_share", 0.1) or 0.1)
+    return blocks * (tblock + tqueue) * total_trips * share
+
+
+def _render_base_summary(base: dict, ind: dict) -> None:
+    """Painel de impacto do Cenário 0: viagens, atraso diário/anual, custo
+    social anual e a interferência mais crítica."""
+    from . import social_cost as sc_mod
+    p = base.get("params") or st.session_state.get("params", {}) or {}
+    its = list(base.get("interferences") or [])
+    total_trips = float(ind.get("total_trips", 0) or 0)
+    daily_delay = float(ind.get("delay_total_min", 0) or 0)
+    days = float(p.get("operating_days", 252) or 252)
+    annual_delay = daily_delay * days
+    cost = sc_mod.social_cost(ind, p)
+
+    ranked = sorted(its, key=lambda it: interference_delay_min_day(it, total_trips),
+                    reverse=True)
+    worst = ranked[0] if ranked else None
+
+    st.markdown("#### 📋 Resumo do Cenário 0 — Situação Atual")
+    r1 = st.columns(3)
+    with r1[0]: ui_theme.card("Viagens totais estimadas", f"{total_trips:,.0f}")
+    with r1[1]: ui_theme.card("Interferências ativas", f"{len(its)}")
+    with r1[2]: ui_theme.card("Atraso diário estimado", f"{daily_delay:,.0f} viagens·min")
+    r2 = st.columns(3)
+    with r2[0]: ui_theme.card("Atraso anual estimado", f"{annual_delay:,.0f} viagens·min")
+    with r2[1]: ui_theme.card("Custo social anual", f"R$ {cost['annual_cost_brl']:,.0f}")
+    with r2[2]:
+        ui_theme.card("Interferência mais crítica",
+                      worst.get("name", "—") if worst else "—")
+
+    if worst:
+        wd = interference_delay_min_day(worst, total_trips)
+        share = wd / daily_delay * 100 if daily_delay > 0 else 0.0
+        st.caption(
+            f"🚨 **{worst.get('name')}** é a mais crítica: responde por "
+            f"~{wd:,.0f} viagens·min/dia ({share:.0f}% do atraso total). "
+            "Priorizar a intervenção aqui (ex.: viaduto) tende ao maior impacto "
+            "positivo na cidade e na redução do custo social.")
+
+
 def render() -> None:
     from . import workflow
     if not workflow.render_guard("cenarios"):
@@ -320,6 +372,8 @@ def render() -> None:
             with cc[1]: ui_theme.card("Veh·km",   f"{ind.get('veh_km',0):,.0f}")
             with cc[2]: ui_theme.card("Tempo médio (min)", f"{ind.get('avg_time_min',0):.1f}")
             with cc[3]: ui_theme.card("Atraso (min·pessoa)", f"{ind.get('delay_total_min',0):,.0f}")
+
+            _render_base_summary(base, ind)
 
     # ---- Futuro ----
     with tab_fut:

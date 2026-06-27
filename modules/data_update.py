@@ -49,16 +49,20 @@ def _demo_interferences() -> list[dict]:
     """
     import uuid
     from .interferences import compute_rail
+    # nome, lat, lon, fração de viagens afetada (≈ tráfego no cruzamento;
+    # maior perto do Centro/Rodoviária, menor na periferia).
     pts = [
-        ("Passagem de nível 01",           -21.872428, -43.321183),
-        ("Passagem de nível 02",           -21.867511, -43.318361),
-        ("Interseção rodovia-ferrovia 01", -21.864783, -43.316367),
-        ("Interseção rodovia-ferrovia 02", -21.855644, -43.308803),
+        ("Passagem de nível 01",           -21.872428, -43.321183, 0.20),
+        ("Passagem de nível 02",           -21.867511, -43.318361, 0.15),
+        ("Interseção rodovia-ferrovia 01", -21.864783, -43.316367, 0.12),
+        ("Interseção rodovia-ferrovia 02", -21.855644, -43.308803, 0.08),
     ]
-    speed, length, factor, queue, trains = 30.0, 1.2, 1.3, 4.0, 20
+    # Trem da MRS: interrupção TOTAL (nenhum sentido passa), bloqueio observado
+    # de 5–9 min (~7), ~8 passagens/dia. Trem ~2.7 km a 30 km/h → bloqueio ~7 min.
+    speed, length, factor, queue, trains = 30.0, 2.7, 1.3, 3.0, 8
     rail = compute_rail(length, speed, factor, queue)
     out = []
-    for name, lat, lon in pts:
+    for name, lat, lon, share in pts:
         out.append({
             "interference_id": uuid.uuid4().hex[:8],
             "name": name,
@@ -70,8 +74,8 @@ def _demo_interferences() -> list[dict]:
             "blocks_per_day": trains,
             "average_blockage_min": round(rail["block_min"], 2),
             "queue_dissipation_min": queue,
-            "capacity_reduction_percent": 0.0,
-            "risk_level": "alto",
+            "capacity_reduction_percent": 100.0,  # interrupção total
+            "risk_level": "crítico" if share >= 0.18 else "alto",
             "periodicity": "recorrente",
             "lat": lat, "lon": lon,
             "train_speed_kmh": speed,
@@ -80,8 +84,9 @@ def _demo_interferences() -> list[dict]:
             "trains_per_day": trains,
             "computed_block_min": round(rail["block_min"], 2),
             "computed_total_interference_min": round(rail["total_min"], 2),
-            "affected_share": 0.15,
-            "notes": "Cruzamento rodovia–ferrovia (linha MRS). Coord. Google Earth.",
+            "affected_share": share,
+            "notes": "Cruzamento rodovia–ferrovia (MRS). Bloqueio observado 5–9 min, "
+                     "interrupção total. Coord. Google Earth.",
         })
     return out
 
