@@ -286,18 +286,20 @@ def run_improvement_scenario(name: str, improvements: list[dict],
 # ============================================================
 # UI
 # ============================================================
-def interference_delay_min_day(it: dict, total_trips: float) -> float:
+def interference_delay_min_day(it: dict, total_trips: float,
+                               edges_df=None) -> float:
     """Atraso diário (viagens·min) atribuível a UMA interferência.
 
-    Mesma fórmula agregada de network_assignment.compute_indicators:
+    Mesma base de network_assignment.compute_indicators:
         atraso = bloqueios/dia · (bloqueio + fila) · viagens_afetadas
-    onde viagens_afetadas = total_trips · fração_afetada.
+    onde viagens_afetadas vem do FLUXO da aresta mais próxima (se houver rede
+    com geometria) ou, na falta, de `fração_afetada · total`.
     """
     blocks = float(it.get("blocks_per_day", 0) or 0)
     tblock = float(it.get("average_blockage_min", 0) or 0)
     tqueue = float(it.get("queue_dissipation_min", 0) or 0)
-    share = float(it.get("affected_share", 0.1) or 0.1)
-    return blocks * (tblock + tqueue) * total_trips * share
+    affected = na.interference_affected_trips(it, edges_df, total_trips)
+    return blocks * (tblock + tqueue) * affected
 
 
 def _render_base_summary(base: dict, ind: dict) -> None:
@@ -311,8 +313,9 @@ def _render_base_summary(base: dict, ind: dict) -> None:
     days = float(p.get("operating_days", 252) or 252)
     annual_delay = daily_delay * days
     cost = sc_mod.social_cost(ind, p)
+    edges_df = pd.DataFrame(base.get("edges") or [])
 
-    ranked = sorted(its, key=lambda it: interference_delay_min_day(it, total_trips),
+    ranked = sorted(its, key=lambda it: interference_delay_min_day(it, total_trips, edges_df),
                     reverse=True)
     worst = ranked[0] if ranked else None
 
@@ -329,7 +332,7 @@ def _render_base_summary(base: dict, ind: dict) -> None:
                       worst.get("name", "—") if worst else "—")
 
     if worst:
-        wd = interference_delay_min_day(worst, total_trips)
+        wd = interference_delay_min_day(worst, total_trips, edges_df)
         share = wd / daily_delay * 100 if daily_delay > 0 else 0.0
         st.caption(
             f"🚨 **{worst.get('name')}** é a mais crítica: responde por "
@@ -361,7 +364,8 @@ def enumerate_interventions(base: dict, params: dict,
     total_trips = float(ind.get("total_trips", 0) or 0)
     n = len(its)
     names = [it.get("name", f"INT{i+1}") for i, it in enumerate(its)]
-    delays = [interference_delay_min_day(it, total_trips) for it in its]
+    edges_df = pd.DataFrame(base.get("edges") or [])
+    delays = [interference_delay_min_day(it, total_trips, edges_df) for it in its]
     base_daily = float(ind.get("delay_total_min", sum(delays)) or sum(delays))
     days = float(params.get("operating_days", 252) or 252)
     base_annual_cost = sc_mod.social_cost({"delay_total_min": base_daily}, params)["annual_cost_brl"]

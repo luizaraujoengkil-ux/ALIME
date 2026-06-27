@@ -133,6 +133,50 @@ def all_or_nothing(G: Any, T: np.ndarray, zone_ids: list[str],
     return pd.DataFrame(rows)
 
 
+def nearest_edge_flow(lat, lon, edges_df: pd.DataFrame,
+                      max_dist_m: float = 250.0) -> float | None:
+    """Fluxo (viagens) da aresta mais próxima de um ponto, ou None.
+
+    Mede a distância do ponto ao ponto médio de cada aresta; se a mais próxima
+    estiver além de `max_dist_m`, devolve None (ponto não está sobre a rede).
+    """
+    if edges_df is None or len(edges_df) == 0:
+        return None
+    need = {"from_lat", "from_lon", "to_lat", "to_lon", "flow"}
+    if not need.issubset(set(edges_df.columns)):
+        return None
+    try:
+        lat = float(lat); lon = float(lon)
+    except (TypeError, ValueError):
+        return None
+    if lat == 0.0 and lon == 0.0:
+        return None
+    best_flow, best_d = None, float("inf")
+    for r in edges_df.itertuples(index=False):
+        try:
+            mlat = (float(r.from_lat) + float(r.to_lat)) / 2.0
+            mlon = (float(r.from_lon) + float(r.to_lon)) / 2.0
+        except Exception:
+            continue
+        d = td.haversine_km(lat, lon, mlat, mlon) * 1000.0
+        if d < best_d:
+            best_d, best_flow = d, float(getattr(r, "flow", 0.0) or 0.0)
+    return best_flow if best_d <= max_dist_m else None
+
+
+def interference_affected_trips(it: dict, edges_df: pd.DataFrame,
+                                total_trips: float) -> float:
+    """Viagens afetadas por uma interferência.
+
+    Usa o FLUXO da aresta mais próxima (viagens que realmente cruzam o ponto)
+    quando há rede com geometria; senão cai para `fração_afetada · total`.
+    """
+    flow = nearest_edge_flow(it.get("lat"), it.get("lon"), edges_df)
+    if flow is not None:
+        return flow
+    return total_trips * float(it.get("affected_share", 0.10) or 0.10)
+
+
 def compute_indicators(edges_df: pd.DataFrame, T: np.ndarray,
                        interferences: list[dict] | None = None) -> dict:
     """Indicadores de saída: distância média ponderada, tempo médio, atraso total."""
@@ -144,16 +188,16 @@ def compute_indicators(edges_df: pd.DataFrame, T: np.ndarray,
     avg_dist = veh_km / max(total_trips, 1e-9)
     avg_time = veh_min / max(total_trips, 1e-9)
 
-    # Atraso por interferências (aplicado de forma agregada)
+    # Atraso por interferências — pelo fluxo do trecho (aresta mais próxima);
+    # cai para fração agregada quando não há geometria de rede.
     delay_total_min = 0.0
     if interferences:
         for it in interferences:
             blocks = float(it.get("blocks_per_day", 0) or 0)
             tblock = float(it.get("average_blockage_min", 0) or 0)
             tqueue = float(it.get("queue_dissipation_min", 0) or 0)
-            affected_share = float(it.get("affected_share", 0.10) or 0.10)
-            people = total_trips * affected_share
-            delay_total_min += blocks * (tblock + tqueue) * people
+            affected = interference_affected_trips(it, edges_df, total_trips)
+            delay_total_min += blocks * (tblock + tqueue) * affected
     return {
         "total_trips": total_trips,
         "veh_km": veh_km,
