@@ -70,6 +70,72 @@ def compute_rail(train_length_km: float, train_speed_kmh: float,
     return {"occupancy_min": occ, "block_min": block, "total_min": total}
 
 
+def _parse_coords(text: str) -> list[tuple[float, float]]:
+    """Converte a string <coordinates> do KML em lista de (lat, lon)."""
+    out = []
+    for tok in (text or "").replace("\n", " ").replace("\t", " ").split():
+        parts = tok.split(",")
+        if len(parts) >= 2:
+            try:
+                lon, lat = float(parts[0]), float(parts[1])
+            except ValueError:
+                continue
+            out.append((lat, lon))
+    return out
+
+
+def parse_kml_kmz(uploaded) -> list[dict]:
+    """Lê um KMZ/KML e devolve uma lista de placemarks {name, lat, lon, geometry_type}.
+
+    Pontos viram 'point'; linhas/áreas viram 'line'/'area' usando o centroide
+    (média das coordenadas) como ponto representativo.
+    """
+    import io
+    import zipfile
+    import xml.etree.ElementTree as ET
+
+    name = uploaded.name.lower()
+    data = uploaded.read()
+    if name.endswith(".kmz"):
+        zf = zipfile.ZipFile(io.BytesIO(data))
+        kmls = [n for n in zf.namelist() if n.lower().endswith(".kml")]
+        if not kmls:
+            return []
+        data = zf.read(kmls[0])
+    if isinstance(data, bytes):
+        data = data.decode("utf-8", errors="ignore")
+    root = ET.fromstring(data)
+
+    placemarks = []
+    for pm in root.iter():
+        if not pm.tag.endswith("Placemark"):
+            continue
+        nm, coords, has_line, has_poly = None, None, False, False
+        for child in pm.iter():
+            tag = child.tag.split("}")[-1]
+            if tag == "name" and nm is None:
+                nm = (child.text or "").strip()
+            elif tag == "LineString":
+                has_line = True
+            elif tag == "Polygon":
+                has_poly = True
+            elif tag == "coordinates" and coords is None:
+                coords = child.text
+        pts = _parse_coords(coords) if coords else []
+        if not pts:
+            continue
+        if len(pts) == 1:
+            lat, lon, gtype = pts[0][0], pts[0][1], "point"
+        else:
+            lat = sum(p[0] for p in pts) / len(pts)
+            lon = sum(p[1] for p in pts) / len(pts)
+            gtype = "area" if has_poly else ("line" if has_line else "point")
+        placemarks.append({"name": nm or "Interferência",
+                           "lat": round(lat, 6), "lon": round(lon, 6),
+                           "geometry_type": gtype})
+    return placemarks
+
+
 def render() -> None:
     from . import workflow
     if not workflow.render_guard("interferencias"):
@@ -85,7 +151,66 @@ def render() -> None:
     if not st.session_state.get("interferences"):
         st.session_state["interferences"] = []
 
-    tab_list, tab_add = st.tabs(["Lista cadastrada", "Adicionar interferência"])
+    tab_list, tab_add, tab_imp = st.tabs(
+        ["Lista cadastrada", "Adicionar interferência", "Importar KMZ/KML"]
+    )
+
+    with tab_imp:
+        st.markdown(
+            "Importe pontos de interferência de um **KMZ/KML** (ex.: marcadores do "
+            "Google Earth). Defina abaixo os parâmetros aplicados a todos — depois "
+            "ajuste cada um na aba **Lista cadastrada**."
+        )
+        ci1, ci2, ci3 = st.columns(3)
+        with ci1:
+            imp_type = st.selectbox("Tipo (para todos)", INTERFERENCE_TYPES, key="imp_type")
+            imp_risk = st.selectbox("Risco", ["baixo", "médio", "alto", "crítico"],
+                                    index=2, key="imp_risk")
+        with ci2:
+            imp_blocks = st.number_input("Bloqueios/dia", 0, 1000, 8, 1, key="imp_blocks")
+            imp_block = st.number_input("Bloqueio médio (min)", 0.0, 120.0, 7.0, 0.5, key="imp_block")
+        with ci3:
+            imp_queue = st.number_input("Dissipação da fila (min)", 0.0, 60.0, 3.0, 0.5, key="imp_queue")
+            imp_share = st.number_input("Fração de viagens afetada", 0.0, 1.0, 0.15, 0.05,
+                                        key="imp_share",
+                                        help="Usada só se não houver malha OSM construída "
+                                             "(senão o atraso vem do fluxo do trecho).")
+        up_kml = st.file_uploader("Arquivo KMZ ou KML", type=["kmz", "kml"], key="interf_kml")
+        if up_kml is not None:
+            try:
+                pms = parse_kml_kmz(up_kml)
+            except Exception as e:
+                ui_theme.warn(f"Não foi possível ler o arquivo: {e}")
+                pms = []
+            if not pms:
+                ui_theme.info("Nenhum ponto/linha encontrado no arquivo.")
+            else:
+                st.caption(f"{len(pms)} feição(ões) encontrada(s):")
+                st.dataframe(pd.DataFrame(pms), use_container_width=True)
+                if st.button(f"➕ Importar {len(pms)} interferência(s)", key="imp_btn"):
+                    for pm in pms:
+                        st.session_state["interferences"].append({
+                            "interference_id": _new_id(),
+                            "name": pm["name"], "type": imp_type,
+                            "geometry_type": pm.get("geometry_type", "point"),
+                            "affected_modes": ["veiculo_leve", "veiculo_pesado",
+                                               "transporte_coletivo"],
+                            "affected_zones": [], "affected_edges": [],
+                            "blocks_per_day": int(imp_blocks),
+                            "average_blockage_min": float(imp_block),
+                            "queue_dissipation_min": float(imp_queue),
+                            "capacity_reduction_percent": 0.0,
+                            "risk_level": imp_risk, "periodicity": "recorrente",
+                            "lat": pm["lat"], "lon": pm["lon"],
+                            "train_speed_kmh": 0.0, "train_length_km": 0.0,
+                            "operational_factor": 1.0, "trains_per_day": int(imp_blocks),
+                            "computed_block_min": float(imp_block),
+                            "computed_total_interference_min": float(imp_block) + float(imp_queue),
+                            "affected_share": float(imp_share),
+                            "notes": f"Importado de {up_kml.name}.",
+                        })
+                    ui_theme.ok(f"{len(pms)} interferência(s) importada(s). "
+                                "Veja na aba Lista cadastrada.")
 
     with tab_add:
         with st.form("add_interf"):
