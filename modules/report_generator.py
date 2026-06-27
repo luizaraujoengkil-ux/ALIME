@@ -133,30 +133,85 @@ def build_markdown(scope: str, study: dict, params: dict,
     return "\n".join(out)
 
 
-def markdown_to_html(md: str, title: str = "Relatório ALIME") -> str:
-    """Conversão simplificada Markdown→HTML mantendo o tema do ALIME."""
-    import html as ihtml
-    safe = ihtml.escape(md)
-    return f"""<!doctype html>
-<html lang="pt-br">
-<head>
-  <meta charset="utf-8"/>
-  <title>{title}</title>
-  <style>
-    body {{ background:#070A0D; color:#F4F4F4; font-family:Segoe UI,Roboto,Arial; padding:32px; }}
-    h1,h2,h3 {{ color:#F5B700; }}
-    table {{ border-collapse:collapse; background:#151F2A; }}
-    th, td {{ border:1px solid #27313D; padding:6px 10px; }}
-    pre {{ background:#111820; padding:10px; border-left:4px solid #F5B700; white-space:pre-wrap; }}
-    blockquote {{ border-left:4px solid #E53935; padding:8px 14px;
-                  background:rgba(229,57,53,0.08); color:#F4F4F4; }}
-    code {{ color:#FF7A00; }}
-  </style>
-</head>
-<body>
-<pre>{safe}</pre>
-</body></html>
+_REPORT_CSS = """
+@page { size: A4 portrait; margin: 1.8cm; }
+body { font-family: Helvetica, Arial, sans-serif; color:#1a2230; font-size:11pt; line-height:1.45; }
+h1 { color:#9a6b00; border-bottom:2px solid #F5B700; padding-bottom:4px; font-size:20pt; }
+h2 { color:#C0392B; font-size:15pt; margin-top:14pt; }
+h3 { color:#1f6f9c; font-size:12.5pt; margin-top:10pt; }
+table { border-collapse:collapse; width:100%; margin:8pt 0; }
+th, td { border:1px solid #c8d0da; padding:4px 8px; text-align:left; }
+th { background:#f2c14e; color:#1a2230; }
+blockquote { border-left:3px solid #E53935; padding:6px 12px; background:#fdecea; color:#5a1a16; }
+code { color:#b3541e; background:#f3f4f6; padding:1px 4px; }
+em { color:#5a6473; }
+hr { border:none; border-top:1px solid #d6dbe2; }
 """
+
+
+def markdown_to_html(md: str, title: str = "Relatório ALIME") -> str:
+    """Converte o Markdown do relatório em HTML renderizado (tema documento).
+
+    Usa a biblioteca `markdown` (com tabelas); se ausente, cai para o markdown
+    cru escapado dentro de <pre>.
+    """
+    try:
+        import markdown as _md
+        body = _md.markdown(
+            md, extensions=["tables", "fenced_code", "sane_lists", "nl2br"])
+    except Exception:
+        import html as ihtml
+        body = f"<pre>{ihtml.escape(md)}</pre>"
+    return (f"<!doctype html><html lang=\"pt-br\"><head><meta charset=\"utf-8\"/>"
+            f"<title>{title}</title><style>{_REPORT_CSS}</style></head>"
+            f"<body>{body}</body></html>")
+
+
+def html_to_pdf(html: str) -> bytes | None:
+    """Converte HTML em PDF (xhtml2pdf/pisa, Python puro). None se indisponível."""
+    try:
+        import io
+        from xhtml2pdf import pisa
+    except Exception:
+        return None
+    try:
+        buf = io.BytesIO()
+        result = pisa.CreatePDF(src=html, dest=buf, encoding="utf-8")
+        if result.err:
+            return None
+        return buf.getvalue()
+    except Exception:
+        return None
+
+
+@st.cache_data(show_spinner=False)
+def _pdf_bytes(html: str) -> bytes | None:
+    """PDF cacheado por conteúdo (evita regerar a cada rerun)."""
+    return html_to_pdf(html)
+
+
+def _download_row(md: str, base_name: str, title: str) -> None:
+    """Botões de download: Markdown, HTML renderizado e PDF."""
+    html = markdown_to_html(md, title=title)
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        st.download_button("⬇ Markdown", md.encode("utf-8"),
+                           file_name=f"{base_name}.md", mime="text/markdown",
+                           key=f"md_{base_name}", use_container_width=True)
+    with c2:
+        st.download_button("⬇ HTML", html.encode("utf-8"),
+                           file_name=f"{base_name}.html", mime="text/html",
+                           key=f"html_{base_name}", use_container_width=True)
+    with c3:
+        pdf = _pdf_bytes(html)
+        if pdf:
+            st.download_button("⬇ PDF", pdf, file_name=f"{base_name}.pdf",
+                               mime="application/pdf", key=f"pdf_{base_name}",
+                               use_container_width=True)
+        else:
+            st.button("⬇ PDF", disabled=True, key=f"pdf_{base_name}",
+                      use_container_width=True,
+                      help="Gerador de PDF indisponível neste ambiente.")
 
 
 def render() -> None:
@@ -181,16 +236,7 @@ def render() -> None:
             st.code(md[:1200] + ("…" if len(md) > 1200 else ""), language="markdown")
             # Apenas visualizar o markdown já indica conclusão da etapa
             st.session_state["report_generated"] = True
-            colA, colB = st.columns(2)
-            with colA:
-                st.download_button("⬇ Baixar Markdown", md.encode("utf-8"),
-                                   file_name="relatorio_base.md",
-                                   mime="text/markdown")
-            with colB:
-                html = markdown_to_html(md, title="ALIME — Cenário-base")
-                st.download_button("⬇ Baixar HTML", html.encode("utf-8"),
-                                   file_name="relatorio_base.html",
-                                   mime="text/html")
+            _download_row(md, "relatorio_base", "ALIME — Cenário-base")
 
     with tab2:
         all_scs = ([base] if base else []) + favs
@@ -202,13 +248,7 @@ def render() -> None:
             sc = all_scs[names.index(sel)]
             md = build_markdown("individual", study, params, base, favs, single=sc)
             st.code(md[:1200] + ("…" if len(md) > 1200 else ""), language="markdown")
-            st.download_button("⬇ Baixar Markdown", md.encode("utf-8"),
-                               file_name=f"relatorio_{sc['scenario_id']}.md",
-                               mime="text/markdown")
-            html = markdown_to_html(md, title=f"ALIME — {sc['name']}")
-            st.download_button("⬇ Baixar HTML", html.encode("utf-8"),
-                               file_name=f"relatorio_{sc['scenario_id']}.html",
-                               mime="text/html")
+            _download_row(md, f"relatorio_{sc['scenario_id']}", f"ALIME — {sc['name']}")
 
     with tab3:
         if base is None:
@@ -216,13 +256,4 @@ def render() -> None:
         else:
             md = build_markdown("consolidado", study, params, base, favs)
             st.code(md[:1500] + ("…" if len(md) > 1500 else ""), language="markdown")
-            colA, colB = st.columns(2)
-            with colA:
-                st.download_button("⬇ Baixar Markdown", md.encode("utf-8"),
-                                   file_name="relatorio_consolidado.md",
-                                   mime="text/markdown")
-            with colB:
-                html = markdown_to_html(md, title="ALIME — Relatório consolidado")
-                st.download_button("⬇ Baixar HTML", html.encode("utf-8"),
-                                   file_name="relatorio_consolidado.html",
-                                   mime="text/html")
+            _download_row(md, "relatorio_consolidado", "ALIME — Relatório consolidado")
