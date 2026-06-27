@@ -38,8 +38,15 @@ NULL_ISLAND_TOL = 1.0
 def _center_from_zones(zones_df: pd.DataFrame) -> tuple[float, float]:
     if zones_df is None or zones_df.empty:
         return -15.78, -47.93  # Brasília como fallback
-    lats = pd.to_numeric(zones_df.get("centroid_lat"), errors="coerce").dropna()
-    lons = pd.to_numeric(zones_df.get("centroid_lon"), errors="coerce").dropna()
+    df = zones_df
+    # Centraliza nas zonas INTERNAS — as externas/cordão (ex.: Rio de Janeiro)
+    # podem ficar a dezenas de km e puxariam o mapa para longe da área de estudo.
+    if "zone_type" in df.columns:
+        internal = df[df["zone_type"].astype(str).str.strip().str.lower() != "externo"]
+        if not internal.empty:
+            df = internal
+    lats = pd.to_numeric(df.get("centroid_lat"), errors="coerce").dropna()
+    lons = pd.to_numeric(df.get("centroid_lon"), errors="coerce").dropna()
     if lats.empty or lons.empty:
         return -15.78, -47.93
     return float(lats.mean()), float(lons.mean())
