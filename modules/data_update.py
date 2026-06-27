@@ -1,9 +1,10 @@
 """Atualização de dados, metadata e carregamento opcional de exemplo genérico.
 
 Por padrão, o ALIME inicia VAZIO. O exemplo genérico (6 zonas com
-nomes "Zona A"... e coordenadas sintéticas em torno de (0, 0)) é
-estritamente OPCIONAL e existe apenas para validação rápida do
-motor matemático. Não representa nenhuma cidade real.
+nomes "Zona A"...) é estritamente OPCIONAL e existe apenas para
+validação rápida do motor matemático. Os atributos são fictícios; as
+coordenadas ficam ancoradas sobre Brasília apenas para que o mapa
+mostre uma cidade real ao fundo. Não é um estudo real de Brasília.
 """
 from __future__ import annotations
 
@@ -43,8 +44,8 @@ def write_metadata(extra: dict | None = None) -> None:
 def load_example() -> None:
     """Carrega um EXEMPLO GENÉRICO de estudo, apenas para validação.
 
-    Os dados NÃO representam nenhuma cidade real: nomes são "Zona A"..
-    e coordenadas formam uma grade sintética em torno de (0, 0).
+    Atributos fictícios (nomes "Zona A"..); coordenadas ancoradas sobre
+    Brasília só para o mapa exibir uma cidade real. Não é estudo de Brasília.
     """
     from . import zones as zones_mod
     zones_path = EXAMPLES_DIR / EXAMPLE_FILENAME
@@ -70,13 +71,13 @@ def load_example() -> None:
     st.session_state["assignment"] = None
     st.session_state["interferences"] = []
 
-    # Estudo genérico — sem cidade real, sem UF fixa
+    # Estudo genérico — atributos fictícios, ancorado em Brasília só para o mapa
     st.session_state["study"] = {
         "name": "Exemplo genérico",
         "area_name": "Área de Estudo (exemplo)",
         "entry_type": "ponto",
-        "center_lat": 0.0,
-        "center_lon": 0.0,
+        "center_lat": -15.793,
+        "center_lon": -47.882,
         "collection_radius_km": 5.0,
         "analysis_radius_km": 3.0,
         "municipality": "",      # campo livre, mantido por compat
@@ -98,17 +99,20 @@ def load_demo() -> None:
 
 
 def _ensure_example_files() -> None:
-    """Garante que o CSV de exemplo genérico exista. Conteúdo 100% neutro:
-    nomes 'Zona A'..'Zona F', coordenadas sintéticas em torno de (0, 0).
+    """Garante que o CSV de exemplo genérico exista.
+
+    Os atributos (população, produção, atração) são fictícios; as coordenadas
+    ficam ancoradas sobre Brasília APENAS para que o mapa mostre uma cidade
+    real ao fundo. Não é um estudo real de Brasília.
     """
     EXAMPLES_DIR.mkdir(parents=True, exist_ok=True)
     example = pd.DataFrame([
-        ["ZA", "Zona A", "centro/núcleo urbano",  3000, 900, 1200,  0.010,  0.000],
-        ["ZB", "Zona B", "residencial",           2500, 800,  300,  0.020,  0.000],
-        ["ZC", "Zona C", "residencial",           2200, 700,  250,  0.000,  0.010],
-        ["ZD", "Zona D", "industrial/logístico",   800, 250,  800,  0.000, -0.010],
-        ["ZE", "Zona E", "comercial/serviços",    1500, 500,  650, -0.010,  0.000],
-        ["ZF", "Zona F", "externo",               2000, 600,  400, -0.020,  0.005],
+        ["ZA", "Zona A", "centro/núcleo urbano",  3000, 900, 1200, -15.783, -47.882],
+        ["ZB", "Zona B", "residencial",           2500, 800,  300, -15.773, -47.882],
+        ["ZC", "Zona C", "residencial",           2200, 700,  250, -15.793, -47.872],
+        ["ZD", "Zona D", "industrial/logístico",   800, 250,  800, -15.793, -47.892],
+        ["ZE", "Zona E", "comercial/serviços",    1500, 500,  650, -15.803, -47.882],
+        ["ZF", "Zona F", "externo",               2000, 600,  400, -15.813, -47.877],
     ], columns=[
         "zone_id", "zone_name", "zone_type",
         "population", "production", "attraction",

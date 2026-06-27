@@ -614,7 +614,11 @@ def render() -> None:
 
     # Linhas de desejo
     st.markdown("### Linhas de desejo (top 30)")
-    m = map_utils.base_map(zones_df)
+    _status, _ = map_utils.coords_status(zones_df)
+    _theme = "Claro" if _status == "null_island" else "Escuro"
+    _tiles, _attr = map_utils.theme_selector("dist_map_theme", default=_theme)
+    map_utils.warn_if_null_island(zones_df)
+    m = map_utils.base_map(zones_df, tiles=_tiles, attr=_attr)
     m = map_utils.add_zones(m, zones_df)
     m = map_utils.add_desire_lines(m, zones_df, T, zone_ids, top_n=30)
     map_utils.show(m, height=500)

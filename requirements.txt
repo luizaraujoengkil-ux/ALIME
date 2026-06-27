@@ -9,6 +9,8 @@ streamlit-folium>=0.18
 shapely>=2.0
 pyproj>=3.6
 geopandas>=0.14
+requests>=2.31
+tabulate>=0.9
 
 # OSMnx é opcional - o ALIME degrada graciosamente sem ele.
 # Descomente apenas se for rodar localmente (não recomendado no Streamlit Cloud,

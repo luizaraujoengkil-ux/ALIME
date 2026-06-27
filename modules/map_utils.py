@@ -16,6 +16,25 @@ except Exception:
     FOLIUM_OK = False
 
 
+# Temas de basemap (rótulo amigável -> (tiles, attribution)).
+# Para tiles nativos do folium, attribution = None. Para URLs externas
+# (ex.: satélite Esri) a attribution é obrigatória.
+TILE_THEMES = {
+    "Claro": ("CartoDB positron", None),
+    "Escuro": ("CartoDB dark_matter", None),
+    "OpenStreetMap": ("OpenStreetMap", None),
+    "Satélite": (
+        "https://server.arcgisonline.com/ArcGIS/rest/services/"
+        "World_Imagery/MapServer/tile/{z}/{y}/{x}",
+        "Esri, Maxar, Earthstar Geographics, GIS User Community",
+    ),
+}
+
+# Distância (em graus) de (0,0) abaixo da qual consideramos que as
+# coordenadas são offsets de exemplo, e não coordenadas reais. ~1° ≈ 111 km.
+NULL_ISLAND_TOL = 1.0
+
+
 def _center_from_zones(zones_df: pd.DataFrame) -> tuple[float, float]:
     if zones_df is None or zones_df.empty:
         return -15.78, -47.93  # Brasília como fallback
@@ -26,15 +45,81 @@ def _center_from_zones(zones_df: pd.DataFrame) -> tuple[float, float]:
     return float(lats.mean()), float(lons.mean())
 
 
-def base_map(zones_df: pd.DataFrame | None = None, zoom: int = 13) -> Any:
-    """Cria um mapa folium em estilo escuro centrado nas zonas."""
+def coords_status(zones_df: pd.DataFrame | None) -> tuple[str, int]:
+    """Classifica as coordenadas das zonas.
+
+    Retorna (status, n_validos):
+        "empty"        — sem coordenadas válidas.
+        "null_island"  — há coords válidas, mas todas a menos de
+                          NULL_ISLAND_TOL graus de (0,0). Quase sempre são
+                          offsets de exemplo (caem no Oceano Atlântico), e o
+                          basemap fica "vazio" porque não há ruas ali.
+        "ok"           — coordenadas reais.
+    """
+    if zones_df is None or zones_df.empty:
+        return ("empty", 0)
+    lats = pd.to_numeric(zones_df.get("centroid_lat"), errors="coerce").dropna()
+    lons = pd.to_numeric(zones_df.get("centroid_lon"), errors="coerce").dropna()
+    n = int(min(len(lats), len(lons)))
+    if n == 0:
+        return ("empty", 0)
+    near_null = bool((lats.abs() < NULL_ISLAND_TOL).all()
+                     and (lons.abs() < NULL_ISLAND_TOL).all())
+    return ("null_island" if near_null else "ok", n)
+
+
+def theme_selector(key: str, default: str = "Escuro") -> tuple[str, str | None]:
+    """Renderiza o seletor de estilo do mapa.
+
+    Devolve (tiles, attribution) prontos para passar a `base_map`.
+    """
+    import streamlit as st
+    options = list(TILE_THEMES.keys())
+    if default not in options:
+        default = options[0]
+    label = st.radio(
+        "Estilo do mapa",
+        options,
+        index=options.index(default),
+        horizontal=True,
+        key=key,
+        help="Satélite e OpenStreetMap mostram a cidade ao fundo; "
+             "Claro/Escuro são mapas estilizados.",
+    )
+    return TILE_THEMES[label]
+
+
+def warn_if_null_island(zones_df: pd.DataFrame | None) -> bool:
+    """Avisa quando os centroides estão perto de (0,0). Retorna True se avisou."""
+    status, _ = coords_status(zones_df)
+    if status == "null_island":
+        import streamlit as st
+        st.warning(
+            "As coordenadas das zonas estão muito próximas de **(0, 0)** — que "
+            "fica no meio do Oceano Atlântico. O mapa carrega normalmente, mas o "
+            "fundo aparece vazio porque não há ruas nesse ponto. Edite "
+            "`centroid_lat` e `centroid_lon` na aba **Tabela editável** com "
+            "coordenadas reais da sua área (ex.: -15.79, -47.88)."
+        )
+        return True
+    return False
+
+
+def base_map(zones_df: pd.DataFrame | None = None, zoom: int = 13,
+             tiles: str = "CartoDB dark_matter", attr: str | None = None) -> Any:
+    """Cria um mapa folium centrado nas zonas.
+
+    `tiles` aceita basemaps nativos do folium (ex.: "OpenStreetMap") ou uma
+    URL de tiles externa (ex.: satélite Esri), caso em que `attr` é obrigatório.
+    """
     if not FOLIUM_OK:
         return None
     lat, lon = _center_from_zones(zones_df) if zones_df is not None else (-15.78, -47.93)
     m = folium.Map(
         location=[lat, lon],
         zoom_start=zoom,
-        tiles="CartoDB dark_matter",
+        tiles=tiles,
+        attr=attr,
         control_scale=True,
     )
     return m

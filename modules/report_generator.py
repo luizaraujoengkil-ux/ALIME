@@ -110,7 +110,13 @@ def build_markdown(scope: str, study: dict, params: dict,
                 })
             df = pd.DataFrame(rows)
             out.append("\n### Tabela consolidada\n")
-            out.append(df.to_markdown(index=False))
+            # Tabela markdown sem depender de `tabulate` (não instalado no deploy).
+            _hdr = list(df.columns)
+            _tbl = ["| " + " | ".join(str(c) for c in _hdr) + " |",
+                    "| " + " | ".join("---" for _ in _hdr) + " |"]
+            for _, _r in df.iterrows():
+                _tbl.append("| " + " | ".join(str(_r[c]) for c in _hdr) + " |")
+            out.append("\n".join(_tbl))
 
     out.append("\n---\n")
     out.append("## Limitações\n")

@@ -11,7 +11,13 @@ import json
 import pandas as pd
 import streamlit as st
 
-from . import ui_theme, map_utils
+from . import ui_theme, map_utils, geocoding
+
+
+@st.cache_data(show_spinner=False, ttl=86400)
+def _cached_geocode(query: str, country: str):
+    """Geocodificação com cache de 24h (evita repetir chamadas ao Nominatim)."""
+    return geocoding.geocode(query, country_codes=country)
 
 
 ZONE_TYPES = [
@@ -197,6 +203,13 @@ def render() -> None:
 
     with tab_edit:
         st.caption("Edite diretamente. Use o botão (+) ao final para nova linha.")
+        # Resultado de uma geocodificação anterior (sobrevive ao st.rerun()).
+        _geo_report = st.session_state.pop("geo_report", None)
+        if _geo_report is not None:
+            ui_theme.ok(_geo_report.get("msg", "Geocodificação concluída."))
+            if _geo_report.get("rows"):
+                st.dataframe(pd.DataFrame(_geo_report["rows"]),
+                             use_container_width=True)
         # Esconde as 6 colunas gerenciadas (originais/balanced/method/factor) — elas
         # são manipuladas exclusivamente pelo motor de balanceamento na etapa 3.
         editor_df = df.drop(columns=MANAGED_COLUMNS, errors="ignore")
@@ -225,6 +238,59 @@ def render() -> None:
                 "zones_saved", "success",
                 f"{len(edited)} zonas salvas com sucesso. Você já pode avançar para Geração."
             )
+
+        # --- Geocodificação por zona (preenche lat/lon pelo nome) ---
+        st.markdown("**📍 Geocodificar zonas pelo nome (OpenStreetMap)**")
+        study = st.session_state.get("study", {}) or {}
+        city = (study.get("area_name") or "").strip()
+        uf = (study.get("uf") or "").strip()
+        ctx = ", ".join(p for p in [city, uf, "Brasil"] if p)
+        st.caption(
+            "Preenche `centroid_lat`/`centroid_lon` buscando o nome de cada zona "
+            f"no contexto **{ctx}**. Nomeie as zonas com bairros/locais reais "
+            "(ex.: 'Centro', 'Bairro Floresta') para melhores resultados. "
+            "Defina o município na etapa **1. Área de Estudo**."
+        )
+        geo_overwrite = st.checkbox(
+            "Sobrescrever coordenadas já preenchidas", value=False, key="geo_overwrite"
+        )
+        if st.button("🔎 Buscar coordenadas das zonas", key="geo_run"):
+            cur = _coerce(st.session_state["zones"])
+            if cur.empty:
+                ui_theme.warn("Cadastre zonas antes de geocodificar.")
+            else:
+                report, found = [], 0
+                prog = st.progress(0.0, text="Buscando coordenadas…")
+                total = len(cur)
+                for k, (idx, row) in enumerate(cur.iterrows()):
+                    name = str(row.get("zone_name") or row.get("zone_id") or "").strip()
+                    has = (pd.notna(row.get("centroid_lat"))
+                           and pd.notna(row.get("centroid_lon")))
+                    if not name:
+                        report.append({"zona": row.get("zone_id"), "status": "sem nome"})
+                    elif has and not geo_overwrite:
+                        report.append({"zona": name, "status": "mantida (já tinha coords)"})
+                    else:
+                        res = _cached_geocode(geocoding.build_query(name, city, uf), "br")
+                        if res:
+                            cur.at[idx, "centroid_lat"] = round(res[0], 6)
+                            cur.at[idx, "centroid_lon"] = round(res[1], 6)
+                            found += 1
+                            report.append({"zona": name, "status": "✓ encontrada",
+                                           "lat": round(res[0], 6), "lon": round(res[1], 6)})
+                        else:
+                            report.append({"zona": name, "status": "✗ não encontrada"})
+                    prog.progress((k + 1) / total, text=f"{k + 1}/{total}")
+                prog.empty()
+                # Atualiza SÓ as coordenadas — preserva vetores P/A e balanceamento.
+                st.session_state["zones"] = cur
+                st.session_state["geo_report"] = {
+                    "rows": report,
+                    "msg": (f"{found} zona(s) geocodificada(s). Veja na aba Mapa."
+                            if found else
+                            "Nenhuma zona encontrada. Revise os nomes e o município."),
+                }
+                st.rerun()
 
     ui_theme.show_status("zones_saved")
 
@@ -272,7 +338,13 @@ def render() -> None:
                 ui_theme.warn(f"Erro ao ler arquivo: {e}")
 
     with tab_map:
-        m = map_utils.base_map(df)
+        status, _ = map_utils.coords_status(df)
+        # Se as coordenadas parecem fictícias (perto de 0,0), o tema escuro vira
+        # uma "tela preta". Defaultamos para Claro nesse caso.
+        default_theme = "Claro" if status == "null_island" else "Escuro"
+        tiles, tile_attr = map_utils.theme_selector("zones_map_theme", default=default_theme)
+        map_utils.warn_if_null_island(df)
+        m = map_utils.base_map(df, tiles=tiles, attr=tile_attr)
         m = map_utils.add_zones(m, df)
         map_utils.show(m, height=520)
 
@@ -296,19 +368,32 @@ def render() -> None:
                 if not zid:
                     ui_theme.warn("zone_id é obrigatório.")
                 else:
+                    glat, glon = lat, lon
+                    geocoded = False
+                    # Sem coordenadas + tem nome -> tenta geocodificar pelo nome.
+                    if lat == 0.0 and lon == 0.0 and zname.strip():
+                        _study = st.session_state.get("study", {}) or {}
+                        _res = _cached_geocode(
+                            geocoding.build_query(
+                                zname, _study.get("area_name", ""), _study.get("uf", "")
+                            ), "br",
+                        )
+                        if _res:
+                            glat, glon = round(_res[0], 6), round(_res[1], 6)
+                            geocoded = True
                     new_row = {
                         "zone_id": zid, "zone_name": zname, "zone_type": ztype,
                         "population": pop, "production": prod, "attraction": attr,
-                        "centroid_lat": lat, "centroid_lon": lon, "notes": notes,
+                        "centroid_lat": glat, "centroid_lon": glon, "notes": notes,
                     }
                     df_new = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
                     st.session_state["zones"] = reset_all_layers(_coerce(df_new))
                     st.session_state["balancing"] = None
                     ui_theme.clear_status("balancing_applied")
-                    ui_theme.remember_status(
-                        "zones_saved", "success",
-                        f"Zona {zid} adicionada com sucesso."
-                    )
+                    msg = f"Zona {zid} adicionada com sucesso."
+                    if geocoded:
+                        msg += f" Coordenadas encontradas: {glat:.5f}, {glon:.5f}."
+                    ui_theme.remember_status("zones_saved", "success", msg)
 
     st.markdown("---")
     n = len(st.session_state["zones"])
