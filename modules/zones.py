@@ -338,11 +338,7 @@ def render() -> None:
                 ui_theme.warn(f"Erro ao ler arquivo: {e}")
 
     with tab_map:
-        status, _ = map_utils.coords_status(df)
-        # Se as coordenadas parecem fictícias (perto de 0,0), o tema escuro vira
-        # uma "tela preta". Defaultamos para Claro nesse caso.
-        default_theme = "Claro" if status == "null_island" else "Escuro"
-        tiles, tile_attr = map_utils.theme_selector("zones_map_theme", default=default_theme)
+        tiles, tile_attr = map_utils.theme_selector("zones_map_theme", default="OpenStreetMap")
         map_utils.warn_if_null_island(df)
         m = map_utils.base_map(df, tiles=tiles, attr=tile_attr)
         m = map_utils.add_zones(m, df)

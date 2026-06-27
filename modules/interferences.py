@@ -203,9 +203,7 @@ def render() -> None:
             # Mapa
             st.markdown("### Mapa das interferências")
             zones_df = st.session_state.get("zones")
-            _status, _ = map_utils.coords_status(zones_df)
-            _theme = "Claro" if _status == "null_island" else "Escuro"
-            _tiles, _attr = map_utils.theme_selector("interf_map_theme", default=_theme)
+            _tiles, _attr = map_utils.theme_selector("interf_map_theme", default="OpenStreetMap")
             map_utils.warn_if_null_island(zones_df)
             m = map_utils.base_map(zones_df, tiles=_tiles, attr=_attr)
             m = map_utils.add_zones(m, zones_df) if zones_df is not None else m

@@ -68,7 +68,7 @@ def coords_status(zones_df: pd.DataFrame | None) -> tuple[str, int]:
     return ("null_island" if near_null else "ok", n)
 
 
-def theme_selector(key: str, default: str = "Escuro") -> tuple[str, str | None]:
+def theme_selector(key: str, default: str = "OpenStreetMap") -> tuple[str, str | None]:
     """Renderiza o seletor de estilo do mapa.
 
     Devolve (tiles, attribution) prontos para passar a `base_map`.
@@ -137,20 +137,39 @@ def add_zones(m: Any, zones_df: pd.DataFrame) -> Any:
             continue
         if not (lat == lat and lon == lon):  # NaN
             continue
+        zid = row.get("zone_id")
+        zname = row.get("zone_name")
         folium.CircleMarker(
             location=[lat, lon],
             radius=6,
             color="#F5B700",
             fill=True,
             fill_color="#F5B700",
-            fill_opacity=0.85,
+            fill_opacity=0.9,
+            tooltip=str(zname if pd.notna(zname) and str(zname).strip() else zid),
             popup=folium.Popup(
-                f"<b>{row.get('zone_name', row.get('zone_id'))}</b><br>"
+                f"<b>{zid} — {zname}</b><br>"
                 f"Pop: {row.get('population','-')}<br>"
                 f"P: {row.get('production','-')} | A: {row.get('attraction','-')}",
                 max_width=250,
             ),
         ).add_to(m)
+        # Rótulo fixo com o código da zona (ZT01, ZTE01...) ao lado da bolinha.
+        if pd.notna(zid) and str(zid).strip():
+            folium.map.Marker(
+                [lat, lon],
+                icon=folium.DivIcon(
+                    icon_size=(0, 0),
+                    icon_anchor=(0, 0),
+                    html=(
+                        '<div style="font-size:11px;font-weight:700;color:#fff;'
+                        'background:rgba(15,23,38,0.82);padding:1px 5px;'
+                        'border-radius:6px;border:1px solid #F5B700;'
+                        'white-space:nowrap;transform:translate(8px,-8px);">'
+                        f'{zid}</div>'
+                    ),
+                ),
+            ).add_to(m)
     return m
 
 
