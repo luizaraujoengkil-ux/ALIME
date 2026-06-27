@@ -191,7 +191,8 @@ def hero() -> None:
     """Renderiza o bloco hero da tela inicial."""
     from . import (
         __version__, __release_date__,
-        __author__, __coauthor__, __author_email__, __author_affiliation__,
+        __author__, __coauthor__,
+        __author_email__, __coauthor_email__, __author_affiliation__,
     )
     st.markdown(
         f"""
@@ -209,7 +210,11 @@ def hero() -> None:
                 <span style="color:{PALETTE['text']};font-weight:700;">{__coauthor__}</span><br/>
                 <a href="mailto:{__author_email__}" style="color:{PALETTE['orange']};text-decoration:none;">
                     {__author_email__}
-                </a> · <span style="font-size:0.76rem;">{__author_affiliation__}</span>
+                </a> ·
+                <a href="mailto:{__coauthor_email__}" style="color:{PALETTE['orange']};text-decoration:none;">
+                    {__coauthor_email__}
+                </a><br/>
+                <span style="font-size:0.76rem;">{__author_affiliation__}</span>
             </div>
         </div>
         """,

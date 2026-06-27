@@ -17,6 +17,7 @@ from modules import (
     __author__,
     __coauthor__,
     __author_email__,
+    __coauthor_email__,
     __author_affiliation__,
 )
 from modules import (
@@ -147,10 +148,13 @@ def render_sidebar() -> None:
                             line-height:1.4;">
                     Desenvolvido por<br/>
                     <span style="color:{p['text']};font-weight:600;">{__author__}</span><br/>
-                    <span style="color:{p['text']};font-weight:600;">{__coauthor__}</span><br/>
                     <a href="mailto:{__author_email__}"
                        style="color:{p['orange']};text-decoration:none;">
                        {__author_email__}</a><br/>
+                    <span style="color:{p['text']};font-weight:600;">{__coauthor__}</span><br/>
+                    <a href="mailto:{__coauthor_email__}"
+                       style="color:{p['orange']};text-decoration:none;">
+                       {__coauthor_email__}</a><br/>
                     <span style="font-size:0.68rem;">{__author_affiliation__}</span>
                 </div>
             </div>
