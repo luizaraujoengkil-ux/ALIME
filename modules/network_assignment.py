@@ -165,6 +165,121 @@ def compute_indicators(edges_df: pd.DataFrame, T: np.ndarray,
 
 
 # ============================================================
+# Rede real OSM (OpenStreetMap via OSMnx)
+# ============================================================
+@st.cache_resource(show_spinner="Baixando malha viária do OpenStreetMap…")
+def build_osm_graph(center_lat: float, center_lon: float, radius_m: int,
+                    network_type: str = "drive") -> Any:
+    """Baixa a malha viária real do OSM em torno de um ponto (cacheado).
+
+    Retorna o grafo dirigido (MultiDiGraph) do osmnx, ou None se OSMnx não
+    estiver disponível ou a coleta falhar (sem internet, área vazia, etc.).
+    """
+    if not OSMNX_OK:
+        return None
+    try:
+        return ox.graph_from_point(
+            (float(center_lat), float(center_lon)),
+            dist=int(radius_m), network_type=network_type, simplify=True,
+        )
+    except Exception:
+        return None
+
+
+def zone_nodes(G: Any, zones_df: pd.DataFrame) -> dict[str, int]:
+    """Mapeia cada zona ao nó OSM mais próximo. Devolve {zone_id: node_id}.
+
+    Zonas externas (fora do raio) caem no nó de fronteira mais próximo —
+    funcionam, na prática, como pontos de cordão da malha.
+    """
+    mapping: dict[str, int] = {}
+    if G is None:
+        return mapping
+    lats = pd.to_numeric(zones_df["centroid_lat"], errors="coerce")
+    lons = pd.to_numeric(zones_df["centroid_lon"], errors="coerce")
+    ids = zones_df["zone_id"].astype(str).tolist()
+    for zid, la, lo in zip(ids, lats, lons):
+        if pd.isna(la) or pd.isna(lo):
+            continue
+        try:
+            mapping[zid] = int(ox.distance.nearest_nodes(G, X=float(lo), Y=float(la)))
+        except Exception:
+            continue
+    return mapping
+
+
+def osm_distance_matrix(G: Any, znode: dict[str, int],
+                        zone_ids: list[str]) -> np.ndarray:
+    """Matriz n×n de distâncias (km) pela rede real, via Dijkstra (peso 'length')."""
+    n = len(zone_ids)
+    D = np.full((n, n), np.nan)
+    if G is None:
+        return D
+    for i in range(n):
+        ni = znode.get(str(zone_ids[i]))
+        if ni is None:
+            continue
+        try:
+            lengths = nx.single_source_dijkstra_path_length(G, ni, weight="length")
+        except Exception:
+            continue
+        for j in range(n):
+            nj = znode.get(str(zone_ids[j]))
+            if nj is not None and nj in lengths:
+                D[i, j] = lengths[nj] / 1000.0
+    return D
+
+
+def assign_on_osm(G: Any, T: np.ndarray, znode: dict[str, int],
+                  zone_ids: list[str], speed_kmh: float = 35.0) -> pd.DataFrame:
+    """Aloca a matriz O-D nas arestas reais do OSM (all-or-nothing por Dijkstra).
+
+    Retorna edges_df só com as arestas usadas (flow>0): from/to, comprimento,
+    tempo livre, coordenadas dos nós e fluxo — pronto para render e indicadores.
+    """
+    if G is None:
+        return pd.DataFrame()
+    edge_flow: dict[tuple[int, int], float] = {}
+    n = len(zone_ids)
+    for i in range(n):
+        ni = znode.get(str(zone_ids[i]))
+        if ni is None:
+            continue
+        for j in range(n):
+            if i == j:
+                continue
+            tij = float(T[i, j])
+            if tij <= 0:
+                continue
+            nj = znode.get(str(zone_ids[j]))
+            if nj is None:
+                continue
+            try:
+                path = nx.shortest_path(G, ni, nj, weight="length")
+            except Exception:
+                continue
+            for a, b in zip(path[:-1], path[1:]):
+                edge_flow[(a, b)] = edge_flow.get((a, b), 0.0) + tij
+
+    rows = []
+    for (a, b), f in edge_flow.items():
+        data = G.get_edge_data(a, b)
+        if not data:
+            continue
+        length_m = min(d.get("length", 0.0) for d in data.values())
+        length_km = length_m / 1000.0
+        rows.append({
+            "from": a, "to": b,
+            "length_km": length_km,
+            "free_time_min": (length_km / max(speed_kmh, 1e-6)) * 60.0,
+            "from_lat": G.nodes[a]["y"], "from_lon": G.nodes[a]["x"],
+            "to_lat":   G.nodes[b]["y"], "to_lon":   G.nodes[b]["x"],
+            "flow": f,
+        })
+    return pd.DataFrame(rows)
+
+
+# ============================================================
 # UI
 # ============================================================
 def render() -> None:
@@ -172,43 +287,87 @@ def render() -> None:
     if not workflow.render_guard("atribuicao"):
         return
     ui_theme.section_title(6, "Atribuição — Por onde vou?")
-    ui_theme.warn("Esta atribuição é simplificada (all-or-nothing) e **não substitui** modelo de tráfego calibrado.")
+    ui_theme.warn("Atribuição all-or-nothing (sem congestionamento) — exploratória, **não substitui** modelo de tráfego calibrado.")
 
     zones_df = st.session_state.get("zones")
     T = st.session_state.get("od_matrix")
     if zones_df is None or zones_df.empty or T is None:
         ui_theme.warning_message("Cadastre as zonas e gere a matriz O-D antes de alocar.")
         return
+    T = np.asarray(T, dtype=float)
+    zone_ids = zones_df["zone_id"].astype(str).tolist()
 
+    st.markdown("#### Malha viária")
     cc = st.columns(3)
     with cc[0]:
-        k = st.number_input("Vizinhos por nó (k)", min_value=1, max_value=10, value=3, step=1)
+        net_mode = st.radio(
+            "Tipo de malha",
+            ["Real (OpenStreetMap)", "Simplificada (k-vizinhos)"],
+            index=0 if OSMNX_OK else 1,
+            help="A malha REAL baixa as ruas do OSM e calcula caminhos mínimos "
+                 "por Dijkstra (peso = extensão). A simplificada liga os "
+                 "centroides aos k vizinhos mais próximos.",
+        )
+    use_osm = net_mode.startswith("Real")
     with cc[1]:
         speed = st.number_input("Velocidade média (km/h)",
                                 value=float(st.session_state["params"]["default_speed_kmh"]),
                                 min_value=5.0, max_value=120.0, step=1.0)
+    k, radius = 3, 3000
     with cc[2]:
-        use_osmnx = st.checkbox("Tentar usar OSMnx", value=False,
-                                disabled=not OSMNX_OK,
-                                help="Requer OSMnx instalado e internet. "
-                                     "Em V01, recomenda-se rede simplificada.")
+        if use_osm:
+            radius = st.slider("Raio de download (m)", min_value=500, max_value=8000,
+                               value=3000, step=250,
+                               help="Raio em torno do centro das zonas internas. "
+                                    "Maior = mais ruas, porém download mais lento.")
+        else:
+            k = st.number_input("Vizinhos por nó (k)", min_value=1, max_value=10,
+                                value=3, step=1)
+
+    if use_osm and not OSMNX_OK:
+        ui_theme.warning_message(
+            "OSMnx indisponível neste ambiente — a malha real não pode ser baixada. "
+            "Usando malha simplificada.")
+        use_osm = False
 
     if st.button("🧮 Construir rede e alocar"):
-        net = build_simplified_network(zones_df, k_neighbors=int(k), speed_kmh=speed)
-        if use_osmnx and OSMNX_OK:
-            ui_theme.info("OSMnx detectado — esta versão usa rede simplificada por estabilidade. "
-                          "Integração OSM completa fica para futuras versões.")
-        st.session_state["network"] = net
-        zone_ids = zones_df["zone_id"].astype(str).tolist()
-        edges_df = all_or_nothing(net["graph"], T, zone_ids)
-        st.session_state["network"]["edges"] = edges_df
-        ind = compute_indicators(edges_df, T, st.session_state.get("interferences"))
-        st.session_state["assignment"] = ind
-        ui_theme.remember_status(
-            "assignment_done", "success",
-            "Atribuição na rede concluída com sucesso. "
-            "Você já pode cadastrar interferências e gerar o cenário-base."
-        )
+        if use_osm:
+            clat, clon = map_utils._center_from_zones(zones_df)
+            G = build_osm_graph(clat, clon, int(radius))
+            if G is None:
+                ui_theme.warn(
+                    "Não foi possível baixar a malha OSM (sem internet ou área "
+                    "vazia). Tente outro raio ou use a malha simplificada.")
+            else:
+                znode = zone_nodes(G, zones_df)
+                edges_df = assign_on_osm(G, T, znode, zone_ids, speed_kmh=speed)
+                D = osm_distance_matrix(G, znode, zone_ids)
+                st.session_state["network"] = {
+                    "graph": G, "edges": edges_df, "kind": "osm",
+                    "znode": znode, "radius_m": int(radius),
+                    "n_nodes": G.number_of_nodes(), "n_edges": G.number_of_edges(),
+                }
+                st.session_state["network_distance_km"] = {
+                    "matrix": D, "zone_ids": zone_ids}
+                ind = compute_indicators(edges_df, T, st.session_state.get("interferences"))
+                st.session_state["assignment"] = ind
+                ui_theme.remember_status(
+                    "assignment_done", "success",
+                    f"Atribuição na malha real OSM concluída — {G.number_of_nodes()} "
+                    f"nós e {G.number_of_edges()} arestas. Distâncias por Dijkstra "
+                    f"disponíveis para o modelo gravitacional.")
+        else:
+            net = build_simplified_network(zones_df, k_neighbors=int(k), speed_kmh=speed)
+            edges_df = all_or_nothing(net["graph"], T, zone_ids)
+            net["edges"] = edges_df
+            net["kind"] = "simplified"
+            st.session_state["network"] = net
+            st.session_state.pop("network_distance_km", None)
+            ind = compute_indicators(edges_df, T, st.session_state.get("interferences"))
+            st.session_state["assignment"] = ind
+            ui_theme.remember_status(
+                "assignment_done", "success",
+                "Atribuição na rede simplificada concluída.")
 
     ui_theme.show_status("assignment_done")
 
@@ -218,6 +377,11 @@ def render() -> None:
         ui_theme.info("Configure os parâmetros e clique em **Construir rede e alocar**.")
         return
 
+    if net.get("kind") == "osm":
+        ui_theme.info(
+            f"Malha real OSM: **{net.get('n_nodes','?')} nós** e "
+            f"**{net.get('n_edges','?')} arestas** (raio {net.get('radius_m','?')} m).")
+
     c1, c2, c3, c4 = st.columns(4)
     with c1: ui_theme.card("Viagens totais",   f"{ind['total_trips']:,.0f}")
     with c2: ui_theme.card("Veh·km",           f"{ind['veh_km']:,.0f}")
@@ -226,16 +390,31 @@ def render() -> None:
 
     edges_df = net.get("edges")
     if edges_df is None or edges_df.empty:
-        ui_theme.warn("Rede vazia. Verifique os centroides das zonas.")
+        ui_theme.warn("Rede vazia. Verifique os centroides das zonas e a matriz O-D.")
         return
 
     st.markdown("### Mapa de carregamento")
     _tiles, _attr = map_utils.theme_selector("assign_map_theme", default="OpenStreetMap")
+    show_net = False
+    if net.get("kind") == "osm" and net.get("graph") is not None:
+        show_net = st.checkbox("Mostrar a malha viária extraída (OSM)", value=True,
+                               key="show_osm_net")
     map_utils.warn_if_null_island(zones_df)
     m = map_utils.base_map(zones_df, tiles=_tiles, attr=_attr)
+    if show_net:
+        m = map_utils.add_osm_network(m, net["graph"])
     m = map_utils.add_zones(m, zones_df)
     m = map_utils.add_link_loads(m, edges_df, flow_col="flow")
     map_utils.show(m, height=520)
+
+    nd = st.session_state.get("network_distance_km")
+    if nd is not None and net.get("kind") == "osm":
+        st.markdown("### Distâncias pela rede real (km) — Dijkstra")
+        ddf = pd.DataFrame(nd["matrix"], index=nd["zone_ids"],
+                           columns=nd["zone_ids"]).round(2)
+        st.dataframe(ddf, use_container_width=True)
+        st.caption("Distância de viário real entre centroides. Pode substituir a "
+                   "linha reta no modelo gravitacional (etapa 4) numa próxima versão.")
 
     st.markdown("### Trechos mais carregados")
     top = edges_df.sort_values("flow", ascending=False).head(20)

@@ -248,6 +248,31 @@ def add_link_loads(m: Any, edges_df: pd.DataFrame, flow_col: str = "flow") -> An
     return m
 
 
+def add_osm_network(m: Any, G: Any, color: str = "#7A8699",
+                    weight: float = 1.2, opacity: float = 0.55) -> Any:
+    """Desenha a malha viária real (todas as arestas do grafo OSM), de forma leve.
+
+    Usa a geometria real da via (`geometry`) quando disponível; senão liga os
+    nós em linha reta. Mostra ao usuário qual rede sustenta o cálculo de
+    caminhos mínimos (Dijkstra).
+    """
+    if not FOLIUM_OK or m is None or G is None:
+        return m
+    try:
+        for u, v, data in G.edges(data=True):
+            geom = data.get("geometry")
+            if geom is not None:
+                coords = [(lat, lon) for lon, lat in geom.coords]
+            else:
+                coords = [(G.nodes[u]["y"], G.nodes[u]["x"]),
+                          (G.nodes[v]["y"], G.nodes[v]["x"])]
+            folium.PolyLine(locations=coords, color=color,
+                            weight=weight, opacity=opacity).add_to(m)
+    except Exception:
+        pass
+    return m
+
+
 def show(m: Any, height: int = 520):
     """Renderiza no Streamlit. Se folium ausente, mostra placeholder."""
     if FOLIUM_OK and m is not None:
