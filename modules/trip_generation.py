@@ -275,6 +275,19 @@ def render() -> None:
             "normalizar_para_total": "3. Normalizar ambos para um total alvo",
             "manter_sem_balancear":  "4. Manter sem balancear (com aviso)",
         }[x],
+        captions=[
+            "⭐ Recomendado. Mantém a produção e escala a atração por F = ΣP/ΣA. "
+            "Confia na produção (população/domicílios do Censo) — o vetor mais sólido.",
+            "Mantém a atração e escala a produção por ΣA/ΣP. Use se confiar mais "
+            "nos dados de emprego/uso do solo do que nos de domicílios.",
+            "Reescala produção E atração para um total alvo T (ex.: total de uma "
+            "pesquisa O-D oficial que precise ser respeitado).",
+            "Não corrige nada (ΣP ≠ ΣA → modelo inconsistente). Só para inspecionar "
+            "os vetores brutos antes de balancear.",
+        ],
+        help="Toda viagem tem origem e destino, então ΣProdução deve ser igual a "
+             "ΣAtração. Aqui você escolhe em qual vetor confiar para fechar a "
+             "diferença. Para este estudo, o Método 1 reproduz o Fator F = 1,0457.",
     )
     target = None
     if method == "normalizar_para_total":
