@@ -274,15 +274,15 @@ def render_home() -> None:
     # ---- Ações secundárias ----
     cs1, cs2, cs3 = st.columns([1.2, 1.2, 1.2])
     with cs1:
-        if st.button("⬆ Importar estudo existente (JSON)",
-                     use_container_width=True, key="cta_import"):
-            st.session_state["page"] = "Biblioteca"
-            st.rerun()
-    with cs2:
         if st.button("🧪 Carregar exemplo genérico (validação)",
                      use_container_width=True, key="cta_example"):
             from modules import data_update
             data_update.load_example()
+            st.rerun()
+    with cs2:
+        if st.button("⬆ Importar estudo existente (JSON)",
+                     use_container_width=True, key="cta_import"):
+            st.session_state["page"] = "Biblioteca"
             st.rerun()
     with cs3:
         if st.button("📖 Ajuda / Documentação",
