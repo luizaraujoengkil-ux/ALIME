@@ -48,15 +48,15 @@ def _scenario_md_section(sc: dict, params: dict) -> str:
 
 | Indicador | Valor |
 |---|---|
-| Σ viagens | {ind.get('total_trips', 0):,.0f} |
-| Veh·km | {ind.get('veh_km', 0):,.0f} |
-| Tempo médio (min) | {ind.get('avg_time_min', 0):.2f} |
-| Distância média (km) | {ind.get('avg_dist_km', 0):.3f} |
-| Atraso (min·pessoa) | {ind.get('delay_total_min', 0):,.0f} |
-| Horas perdidas/dia | {cost['hours_lost']:,.1f} |
-| Custo social diário (R$) | R$ {cost['daily_cost_brl']:,.0f} |
-| Custo social anual (R$) | R$ {cost['annual_cost_brl']:,.0f} |
-| Custo da obra (R$) | R$ {sc.get('cost_estimate', 0):,.0f} |
+| Σ viagens | {ui_theme.num_br(ind.get('total_trips', 0))} |
+| Veh·km | {ui_theme.num_br(ind.get('veh_km', 0))} |
+| Tempo médio (min) | {ui_theme.num_br(ind.get('avg_time_min', 0), 2)} |
+| Distância média (km) | {ui_theme.num_br(ind.get('avg_dist_km', 0), 3)} |
+| Atraso (min·pessoa) | {ui_theme.num_br(ind.get('delay_total_min', 0))} |
+| Horas perdidas/dia | {ui_theme.num_br(cost['hours_lost'], 1)} |
+| Custo social diário | {ui_theme.brl(cost['daily_cost_brl'])} |
+| Custo social anual | {ui_theme.brl(cost['annual_cost_brl'])} |
+| Custo da obra | {ui_theme.brl(sc.get('cost_estimate', 0))} |
 
 ### Intervenções
 {intv_lines}

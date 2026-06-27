@@ -88,7 +88,17 @@ def render() -> None:
     df = pd.DataFrame(rows)
 
     st.markdown("### Tabela comparativa")
-    st.dataframe(df, use_container_width=True)
+    _fmt = {
+        "Σ viagens": ui_theme.num_br,
+        "veh·km": ui_theme.num_br,
+        "atraso (min·pessoa)": ui_theme.num_br,
+        "custo social anual (R$)": ui_theme.brl,
+        "benefício anual (R$)": ui_theme.brl,
+        "custo obra (R$)": ui_theme.brl,
+        "tempo médio (min)": lambda v: ui_theme.num_br(v, 2),
+        "dist média (km)": lambda v: ui_theme.num_br(v, 3),
+    }
+    st.dataframe(df.style.format(_fmt), use_container_width=True)
 
     # Ranking
     st.markdown("### Rankings")

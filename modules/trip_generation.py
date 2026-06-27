@@ -63,8 +63,8 @@ def _render_balancing_cards(b: dict) -> None:
     r1 = st.columns(4)
     with r1[0]: ui_theme.card("Método aplicado", _method_label(b["method"]))
     with r1[1]: ui_theme.card("Fator aplicado", f"{b['factor']:.6f}")
-    with r1[2]: ui_theme.card("Σ P final", f"{b['sumP_final']:,.1f}")
-    with r1[3]: ui_theme.card("Σ A final", f"{b['sumA_final']:,.1f}")
+    with r1[2]: ui_theme.card("Σ P final", ui_theme.num_br(b['sumP_final'], 1))
+    with r1[3]: ui_theme.card("Σ A final", ui_theme.num_br(b['sumA_final'], 1))
 
     r2 = st.columns(4)
     with r2[0]: ui_theme.card("Erro relativo final", f"{b['rel_error']*100:.3f}%")
@@ -244,8 +244,8 @@ def render() -> None:
 
     st.markdown("### Resumo dos vetores originais")
     c1, c2, c3, c4 = st.columns(4)
-    with c1: ui_theme.card("Σ Produção original", f"{sumP_orig:,.1f}")
-    with c2: ui_theme.card("Σ Atração original",  f"{sumA_orig:,.1f}")
+    with c1: ui_theme.card("Σ Produção original", ui_theme.num_br(sumP_orig, 1))
+    with c2: ui_theme.card("Σ Atração original",  ui_theme.num_br(sumA_orig, 1))
     with c3: ui_theme.card("Diferença original",  f"{diff:+,.1f}")
     with c4:
         status_orig = ("Balanceado" if rel_orig < 0.01

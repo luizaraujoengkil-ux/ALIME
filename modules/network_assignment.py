@@ -472,10 +472,10 @@ def render() -> None:
             f"(área de atuação: raio {net.get('radius_m',0)/1000:.1f} km).")
 
     c1, c2, c3, c4 = st.columns(4)
-    with c1: ui_theme.card("Viagens totais",   f"{ind['total_trips']:,.0f}")
-    with c2: ui_theme.card("Veh·km",           f"{ind['veh_km']:,.0f}")
-    with c3: ui_theme.card("Tempo médio (min)", f"{ind['avg_time_min']:,.1f}")
-    with c4: ui_theme.card("Atraso total (min·pessoa)", f"{ind['delay_total_min']:,.0f}")
+    with c1: ui_theme.card("Viagens totais",   ui_theme.num_br(ind['total_trips']))
+    with c2: ui_theme.card("Veh·km",           ui_theme.num_br(ind['veh_km']))
+    with c3: ui_theme.card("Tempo médio (min)", ui_theme.num_br(ind['avg_time_min'], 1))
+    with c4: ui_theme.card("Atraso total (min·pessoa)", ui_theme.num_br(ind['delay_total_min']))
 
     edges_df = net.get("edges")
     if edges_df is None or edges_df.empty:

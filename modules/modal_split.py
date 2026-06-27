@@ -93,8 +93,10 @@ def render() -> None:
     for m, mat in mats.items():
         rows.append({"Modo": MODE_LABEL[m], "Participação": norm.get(m, 0.0), "Σ viagens": float(mat.sum())})
     df = pd.DataFrame(rows)
-    st.dataframe(df.style.format({"Participação": "{:.1%}", "Σ viagens": "{:,.0f}"}),
-                 use_container_width=True)
+    st.dataframe(df.style.format({
+        "Participação": lambda v: ui_theme.num_br(v * 100, 1) + "%",
+        "Σ viagens": ui_theme.num_br,
+    }), use_container_width=True)
 
     # Gráficos
     c1, c2 = st.columns(2)

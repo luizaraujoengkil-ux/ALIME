@@ -110,7 +110,7 @@ def render() -> None:
                 st.write(f"**Horizonte:** {sc.get('horizon_year','—')}")
             with c3:
                 ind = sc.get("assignment", {})
-                st.write(f"**Σ viagens:** {ind.get('total_trips',0):,.0f}")
+                st.write(f"**Σ viagens:** {ui_theme.num_br(ind.get('total_trips', 0))}")
                 st.write(f"**Tempo médio:** {ind.get('avg_time_min',0):.1f} min")
             with c4:
                 if st.button("⧉ Duplicar", key=f"dup_{i}"):

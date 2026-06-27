@@ -360,16 +360,16 @@ def render() -> None:
     if b and b.get("applied"):
         ui_theme.info(
             f"Distribuição utilizando <b>vetores balanceados</b> da etapa 3. "
-            f"Σ P usado = <b>{float(P.sum()):,.1f}</b> · "
-            f"Σ A usado = <b>{float(A.sum()):,.1f}</b> · "
+            f"Σ P usado = <b>{ui_theme.num_br(float(P.sum()), 1)}</b> · "
+            f"Σ A usado = <b>{ui_theme.num_br(float(A.sum()), 1)}</b> · "
             f"fator aplicado = <b>{b['factor']:.6f}</b>."
         )
     else:
         ui_theme.warning_message(
             f"Distribuição utilizando vetores <b>originais</b> "
             f"(o balanceamento ainda não foi aplicado na etapa 3). "
-            f"Σ P = <b>{float(P.sum()):,.1f}</b> · "
-            f"Σ A = <b>{float(A.sum()):,.1f}</b>."
+            f"Σ P = <b>{ui_theme.num_br(float(P.sum()), 1)}</b> · "
+            f"Σ A = <b>{ui_theme.num_br(float(A.sum()), 1)}</b>."
         )
 
     tab_imp, tab_grav, tab_import = st.tabs(
@@ -532,8 +532,8 @@ def render() -> None:
                                              "Evita divisão por zero.")
         with c4:
             st.caption("Vetores em uso:")
-            st.write(f"Σ P = **{float(P.sum()):,.1f}**")
-            st.write(f"Σ A = **{float(A.sum()):,.1f}**")
+            st.write(f"Σ P = **{ui_theme.num_br(float(P.sum()), 1)}**")
+            st.write(f"Σ A = **{ui_theme.num_br(float(A.sum()), 1)}**")
 
         M_current = st.session_state.get("impedance")
         chk = validate_impedance_matrix(M_current, zone_ids)

@@ -414,10 +414,10 @@ def render() -> None:
             sp = float(pd.to_numeric(st.session_state["zones"]["production"], errors="coerce").fillna(0).sum())
         except Exception:
             sp = 0.0
-        ui_theme.card("Σ Produção", f"{sp:,.0f}")
+        ui_theme.card("Σ Produção", ui_theme.num_br(sp))
     with cc[2]:
         try:
             sa = float(pd.to_numeric(st.session_state["zones"]["attraction"], errors="coerce").fillna(0).sum())
         except Exception:
             sa = 0.0
-        ui_theme.card("Σ Atração", f"{sa:,.0f}")
+        ui_theme.card("Σ Atração", ui_theme.num_br(sa))

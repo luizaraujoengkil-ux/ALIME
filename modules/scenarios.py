@@ -321,12 +321,12 @@ def _render_base_summary(base: dict, ind: dict) -> None:
 
     st.markdown("#### 📋 Resumo do Cenário 0 — Situação Atual")
     r1 = st.columns(3)
-    with r1[0]: ui_theme.card("Viagens totais estimadas", f"{total_trips:,.0f}")
+    with r1[0]: ui_theme.card("Viagens totais estimadas", ui_theme.num_br(total_trips))
     with r1[1]: ui_theme.card("Interferências ativas", f"{len(its)}")
-    with r1[2]: ui_theme.card("Atraso diário estimado", f"{daily_delay:,.0f} viagens·min")
+    with r1[2]: ui_theme.card("Atraso diário estimado", f"{ui_theme.num_br(daily_delay)} viagens·min")
     r2 = st.columns(3)
-    with r2[0]: ui_theme.card("Atraso anual estimado", f"{annual_delay:,.0f} viagens·min")
-    with r2[1]: ui_theme.card("Custo social anual", f"R$ {cost['annual_cost_brl']:,.0f}")
+    with r2[0]: ui_theme.card("Atraso anual estimado", f"{ui_theme.num_br(annual_delay)} viagens·min")
+    with r2[1]: ui_theme.card("Custo social anual", ui_theme.brl(cost['annual_cost_brl']))
     with r2[2]:
         ui_theme.card("Interferência mais crítica",
                       worst.get("name", "—") if worst else "—")
@@ -336,7 +336,7 @@ def _render_base_summary(base: dict, ind: dict) -> None:
         share = wd / daily_delay * 100 if daily_delay > 0 else 0.0
         st.caption(
             f"🚨 **{worst.get('name')}** é a mais crítica: responde por "
-            f"~{wd:,.0f} viagens·min/dia ({share:.0f}% do atraso total). "
+            f"~{ui_theme.num_br(wd)} viagens·min/dia ({share:.0f}% do atraso total). "
             "Priorizar a intervenção aqui (ex.: viaduto) tende ao maior impacto "
             "positivo na cidade e na redução do custo social.")
 
@@ -430,7 +430,7 @@ def _render_intervention_study(base: dict) -> None:
     last = st.session_state.get("last_obra_cost")
     if last:
         st.caption(f"💡 Última estimativa (aba **Custo de obra**): {last['type']} — "
-                   f"**R$ {last['cost_brl']:,.0f}** ({last['area_m2']:,.0f} m²). "
+                   f"**{ui_theme.brl(last['cost_brl'])}** ({ui_theme.num_br(last['area_m2'])} m²). "
                    "Digite-a na interferência desejada abaixo.")
     saved = st.session_state.get("obra_costs", {}) or {}
     cost_df = pd.DataFrame({
@@ -531,7 +531,7 @@ def display_intervention_ranking(study: dict, key_prefix: str = "r") -> None:
     with cA:
         if best_single:
             ui_theme.card("🥇 Melhor obra única", f"{best_single['cruzamentos_melhorados']}")
-            st.caption(f"Benefício R$ {best_single['beneficio_anual']:,.0f}/ano")
+            st.caption(f"Benefício {ui_theme.brl(best_single['beneficio_anual'])}/ano")
     with cB:
         if has_costs:
             pbs = [r for r in rows if r["payback_anos"] is not None]
@@ -544,10 +544,10 @@ def display_intervention_ranking(study: dict, key_prefix: str = "r") -> None:
                       key=lambda r: r["beneficio_por_intervencao"], default=None)
             if eff:
                 ui_theme.card("💡 Melhor benefício/obra",
-                              f"R$ {eff['beneficio_por_intervencao']:,.0f}")
+                              ui_theme.brl(eff['beneficio_por_intervencao']))
                 st.caption(f"{eff['cruzamentos_melhorados']}")
     with cC:
-        ui_theme.card("🏆 Resolver todas", f"R$ {full['beneficio_anual']:,.0f}/ano")
+        ui_theme.card("🏆 Resolver todas", f"{ui_theme.brl(full['beneficio_anual'])}/ano")
         st.caption(f"{full['n_intervencoes']} obras → atraso ~0")
 
     base_cols = ["n_intervencoes", "cruzamentos_melhorados", "atraso_anual",
@@ -567,10 +567,10 @@ def display_intervention_ranking(study: dict, key_prefix: str = "r") -> None:
     }
     dfv = pd.DataFrame(rows)[base_cols + extra].rename(columns=ren)
 
-    def _money(v): return "—" if pd.isna(v) else f"R$ {v:,.0f}"
-    def _num(v): return "—" if pd.isna(v) else f"{v:,.0f}"
-    def _pb(v): return "—" if pd.isna(v) else f"{v:.1f}"
-    def _ibc(v): return "—" if pd.isna(v) else f"{v:.2f}"
+    def _money(v): return "—" if pd.isna(v) else ui_theme.brl(v)
+    def _num(v): return "—" if pd.isna(v) else ui_theme.num_br(v)
+    def _pb(v): return "—" if pd.isna(v) else ui_theme.num_br(v, 1)
+    def _ibc(v): return "—" if pd.isna(v) else ui_theme.num_br(v, 2)
     fmt = {
         "atraso anual (viagens·min)": _num,
         "custo social anual (R$)": _money,
@@ -651,10 +651,10 @@ def render() -> None:
         if base:
             ind = base.get("assignment", {})
             cc = st.columns(4)
-            with cc[0]: ui_theme.card("Σ Viagens", f"{ind.get('total_trips',0):,.0f}")
-            with cc[1]: ui_theme.card("Veh·km",   f"{ind.get('veh_km',0):,.0f}")
-            with cc[2]: ui_theme.card("Tempo médio (min)", f"{ind.get('avg_time_min',0):.1f}")
-            with cc[3]: ui_theme.card("Atraso (min·pessoa)", f"{ind.get('delay_total_min',0):,.0f}")
+            with cc[0]: ui_theme.card("Σ Viagens", ui_theme.num_br(ind.get('total_trips', 0)))
+            with cc[1]: ui_theme.card("Veh·km",   ui_theme.num_br(ind.get('veh_km', 0)))
+            with cc[2]: ui_theme.card("Tempo médio (min)", ui_theme.num_br(ind.get('avg_time_min', 0), 1))
+            with cc[3]: ui_theme.card("Atraso (min·pessoa)", ui_theme.num_br(ind.get('delay_total_min', 0)))
 
             _render_base_summary(base, ind)
             st.markdown("---")

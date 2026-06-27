@@ -80,10 +80,10 @@ def render() -> None:
     if base:
         cb = social_cost(base.get("assignment", {}), p)
         c1, c2, c3, c4 = st.columns(4)
-        with c1: ui_theme.card("Horas perdidas / dia (base)", f"{cb['hours_lost']:,.0f}")
-        with c2: ui_theme.card("Custo social diário (R$)",   f"{cb['daily_cost_brl']:,.0f}")
-        with c3: ui_theme.card("Custo social anual (R$)",    f"{cb['annual_cost_brl']:,.0f}")
-        with c4: ui_theme.card("Ocupação adotada",           f"{p['occupancy']:.1f}")
+        with c1: ui_theme.card("Horas perdidas / dia (base)", ui_theme.num_br(cb['hours_lost']))
+        with c2: ui_theme.card("Custo social diário",   ui_theme.brl(cb['daily_cost_brl']))
+        with c3: ui_theme.card("Custo social anual",    ui_theme.brl(cb['annual_cost_brl']))
+        with c4: ui_theme.card("Ocupação adotada",      ui_theme.num_br(p['occupancy'], 1))
 
     # Lista comparada com favoritos
     favs = st.session_state.get("favorite_scenarios", [])
@@ -104,7 +104,7 @@ def render() -> None:
             "annual_cost_brl": "custo anual (R$)",
         })
         st.dataframe(df.style.format({
-            "horas/dia": "{:,.1f}",
-            "custo diário (R$)": "R$ {:,.0f}",
-            "custo anual (R$)": "R$ {:,.0f}",
+            "horas/dia": lambda v: ui_theme.num_br(v, 1),
+            "custo diário (R$)": ui_theme.brl,
+            "custo anual (R$)": ui_theme.brl,
         }), use_container_width=True)
