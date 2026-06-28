@@ -17,6 +17,7 @@ from . import ui_theme, social_cost as sc_mod
 from . import (
     __version__, __release_date__,
     __author__, __author_email__, __author_affiliation__,
+    __coauthor__, __coauthor_email__,
 )
 
 
@@ -30,6 +31,129 @@ DISCLAIMER_TXT = (
     "pesquisa O-D domiciliar, microssimulação, EVTEA, orçamento executivo ou "
     "projeto de engenharia."
 )
+
+
+def _bar_chart_b64(labels, values, title="", ylabel="", color="#E67E22",
+                   money=False) -> str:
+    """Gera um gráfico de barras (matplotlib) e devolve uma tag <img> base64.
+
+    Retorna "" se matplotlib não estiver disponível ou se faltar dado — o
+    relatório degrada graciosamente (sem gráfico).
+    """
+    if not labels or not values or len(labels) != len(values):
+        return ""
+    try:
+        import io
+        import base64
+        import matplotlib
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+        from matplotlib.ticker import FuncFormatter
+
+        fig, ax = plt.subplots(figsize=(7.2, 3.3))
+        ax.bar(range(len(values)), values, color=color, zorder=3)
+        ax.set_xticks(range(len(labels)))
+        ax.set_xticklabels([str(x) for x in labels], rotation=25, ha="right", fontsize=8)
+        if title:
+            ax.set_title(title, fontsize=11, color="#1a2230")
+        if ylabel:
+            ax.set_ylabel(ylabel, fontsize=9)
+        if money:
+            ax.yaxis.set_major_formatter(FuncFormatter(lambda v, _: ui_theme.num_br(v)))
+        ax.grid(axis="y", color="#e3e7ec", zorder=0)
+        for s in ("top", "right"):
+            ax.spines[s].set_visible(False)
+        ax.tick_params(labelsize=8)
+        fig.tight_layout()
+        buf = io.BytesIO()
+        fig.savefig(buf, format="png", dpi=110)
+        plt.close(fig)
+        b64 = base64.b64encode(buf.getvalue()).decode("ascii")
+        return (f'<p><img src="data:image/png;base64,{b64}" '
+                f'style="max-width:100%;height:auto;"/></p>')
+    except Exception:
+        return ""
+
+
+def _comparison_charts_md(base, favs, params) -> str:
+    """Gráficos comparativos entre cenários (custo social e atraso)."""
+    all_sc = ([base] if base else []) + list(favs or [])
+    if not all_sc:
+        return ""
+    labels = [(s.get("name") or "?")[:24] for s in all_sc]
+    costs = [sc_mod.social_cost(s.get("assignment", {}) or {}, params)["annual_cost_brl"]
+             for s in all_sc]
+    delays = [float((s.get("assignment", {}) or {}).get("delay_total_min", 0) or 0)
+              for s in all_sc]
+    c1 = _bar_chart_b64(labels, costs, "Custo social anual por cenário (R$)",
+                        "R$/ano", color="#C0392B", money=True)
+    c2 = _bar_chart_b64(labels, delays, "Atraso por cenário (min·pessoa/dia)",
+                        "min·pessoa", color="#E67E22", money=True)
+    if not (c1 or c2):
+        return ""
+    return "\n### Gráficos comparativos\n\n" + c1 + "\n" + c2
+
+
+def _prioritization_md(study: dict | None) -> str:
+    """Seção de priorização de intervenções — o panorama de decisão."""
+    if not study or not study.get("rows"):
+        return ""
+    rows = [r for r in study["rows"] if r.get("n_intervencoes", 0) > 0]
+    if not rows:
+        return ""
+    has_costs = study.get("has_costs", False)
+    out = ["\n---\n", "## Priorização de intervenções — panorama de decisão\n",
+           "Avaliação de **todas as combinações** de intervenção (2ⁿ): cada "
+           "'melhoria' elimina o atraso de um cruzamento (ex.: viaduto). O quadro "
+           "abaixo orienta **onde investir** com maior retorno.\n"]
+
+    if has_costs:
+        pbs = [r for r in rows if r.get("payback_anos") is not None]
+        rec = min(pbs, key=lambda r: r["payback_anos"]) if pbs else None
+        if rec:
+            out.append(
+                f"\n> **Recomendação:** priorizar **{rec['cruzamentos_melhorados']}** — "
+                f"benefício {ui_theme.brl(rec['beneficio_anual'])}/ano, "
+                f"custo de obra {ui_theme.brl(rec['custo_obra'])}, "
+                f"**payback {ui_theme.num_br(rec['payback_anos'], 1)} anos** "
+                f"(IBC {ui_theme.num_br(rec['ibc'], 2)}).\n")
+        rk = sorted(pbs, key=lambda r: r["payback_anos"]) or rows
+    else:
+        rec = max(rows, key=lambda r: r["beneficio_anual"])
+        out.append(
+            f"\n> **Recomendação:** maior benefício em "
+            f"**{rec['cruzamentos_melhorados']}** "
+            f"({ui_theme.brl(rec['beneficio_anual'])}/ano). Informe o custo de obra "
+            f"(etapa 8) para ranquear por payback/IBC.\n")
+        rk = sorted(rows, key=lambda r: r["beneficio_anual"], reverse=True)
+
+    top = rk[:8]
+    if has_costs:
+        out.append("\n| Intervenção(ões) | Benefício/ano | Custo de obra | Payback (anos) | IBC |")
+        out.append("|---|---|---|---|---|")
+        for r in top:
+            out.append(f"| {r['cruzamentos_melhorados']} | "
+                       f"{ui_theme.brl(r['beneficio_anual'])} | "
+                       f"{ui_theme.brl(r['custo_obra'])} | "
+                       f"{ui_theme.num_br(r['payback_anos'], 1)} | "
+                       f"{ui_theme.num_br(r['ibc'], 2)} |")
+        chart = _bar_chart_b64([r['cruzamentos_melhorados'][:22] for r in top],
+                               [r['payback_anos'] for r in top],
+                               "Payback por intervenção (anos)", "anos", color="#2E9BFF")
+    else:
+        out.append("\n| Intervenção(ões) | Benefício/ano | Atraso anual (viagens·min) |")
+        out.append("|---|---|---|")
+        for r in top:
+            out.append(f"| {r['cruzamentos_melhorados']} | "
+                       f"{ui_theme.brl(r['beneficio_anual'])} | "
+                       f"{ui_theme.num_br(r['atraso_anual'])} |")
+        chart = _bar_chart_b64([r['cruzamentos_melhorados'][:22] for r in top],
+                               [r['beneficio_anual'] for r in top],
+                               "Benefício anual por intervenção (R$)", "R$/ano",
+                               color="#1F6F2C", money=True)
+    if chart:
+        out.append("\n" + chart)
+    return "\n".join(out)
 
 
 def _scenario_md_section(sc: dict, params: dict) -> str:
@@ -117,6 +241,11 @@ def build_markdown(scope: str, study: dict, params: dict,
             for _, _r in df.iterrows():
                 _tbl.append("| " + " | ".join(str(_r[c]) for c in _hdr) + " |")
             out.append("\n".join(_tbl))
+            out.append(_comparison_charts_md(base, favs, params))
+
+    # Priorização de intervenções (panorama de decisão) — se houver estudo 2^n
+    if scope in ("base", "consolidado"):
+        out.append(_prioritization_md(st.session_state.get("intervention_study")))
 
     out.append("\n---\n")
     out.append("## Limitações\n")
@@ -126,8 +255,10 @@ def build_markdown(scope: str, study: dict, params: dict,
     out.append("- Rede simplificada (k-vizinhos) por padrão.\n")
     out.append("\n---\n")
     out.append(
-        f"**Desenvolvido por {__author__}** — "
-        f"<{__author_email__}> · {__author_affiliation__}  \n"
+        f"**Desenvolvido por:**  \n"
+        f"{__author__} — <{__author_email__}>  \n"
+        f"{__coauthor__} — <{__coauthor_email__}>  \n"
+        f"{__author_affiliation__}  \n"
         f"ALIME v{__version__} · {__release_date__}\n"
     )
     return "\n".join(out)
@@ -233,9 +364,10 @@ def render() -> None:
             ui_theme.warning_message("Gere o cenário-base antes.")
         else:
             md = build_markdown("base", study, params, base, favs)
-            st.code(md[:1200] + ("…" if len(md) > 1200 else ""), language="markdown")
-            # Apenas visualizar o markdown já indica conclusão da etapa
+            # Apenas visualizar o relatório já indica conclusão da etapa
             st.session_state["report_generated"] = True
+            with st.container(border=True):
+                st.markdown(md, unsafe_allow_html=True)
             _download_row(md, "relatorio_base", "ALIME — Cenário-base")
 
     with tab2:
@@ -247,7 +379,8 @@ def render() -> None:
             sel = st.selectbox("Cenário", names)
             sc = all_scs[names.index(sel)]
             md = build_markdown("individual", study, params, base, favs, single=sc)
-            st.code(md[:1200] + ("…" if len(md) > 1200 else ""), language="markdown")
+            with st.container(border=True):
+                st.markdown(md, unsafe_allow_html=True)
             _download_row(md, f"relatorio_{sc['scenario_id']}", f"ALIME — {sc['name']}")
 
     with tab3:
@@ -255,5 +388,6 @@ def render() -> None:
             ui_theme.warn("Gere o cenário-base antes.")
         else:
             md = build_markdown("consolidado", study, params, base, favs)
-            st.code(md[:1500] + ("…" if len(md) > 1500 else ""), language="markdown")
+            with st.container(border=True):
+                st.markdown(md, unsafe_allow_html=True)
             _download_row(md, "relatorio_consolidado", "ALIME — Relatório consolidado")
